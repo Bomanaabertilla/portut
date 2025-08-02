@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/password_reset_screen.dart'; 
 import 'services/auth_service.dart';
 
 void main() {
@@ -14,11 +15,15 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Portut App',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
       home: const AuthWrapper(),
+      routes: {
+        '/reset': (context) => const PasswordResetScreen(), // Ensure this matches
+      },
     );
   }
 }
