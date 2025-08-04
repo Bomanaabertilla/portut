@@ -16,6 +16,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
   final _authorController = TextEditingController();
   File? _selectedFile;
   String? _successMessage;
+  String _visibility = 'Public'; // Default visibility
 
   Future<void> _pickFile() async {
     try {
@@ -58,6 +59,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     await prefs.setString('${postKey}_content', content);
     await prefs.setString('${postKey}_author', author);
     await prefs.setString('${postKey}_timestamp', timestamp);
+    await prefs.setString('${postKey}_visibility', _visibility); // Save visibility
     if (filePath != null) {
       await prefs.setString('${postKey}_file', filePath);
     }
@@ -101,6 +103,43 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                 decoration: const InputDecoration(labelText: 'Content', border: OutlineInputBorder()),
                 maxLines: 5,
                 validator: (value) => null, // No validation, optional field
+              ),
+              const SizedBox(height: 16),
+              const Text('Visibility:', style: TextStyle(fontSize: 16)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Radio<String>(
+                    value: 'Public',
+                    groupValue: _visibility,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _visibility = value;
+                        });
+                      }
+                    },
+                  ),
+                  const Text('Public'),
+                  Radio<String>(
+                    value: 'Private',
+                    groupValue: _visibility,
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _visibility = value;
+                        });
+                      }
+                    },
+                  ),
+                  const Text('Private'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Visibility: $_visibility', // Indicate chosen visibility
+                style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               ElevatedButton(
