@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
-import 'blog_post_screen.dart'; 
+import 'blog_post_screen.dart';
+import 'post_list_screen.dart'; // New import for PostListScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -115,6 +116,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('Create Blog Post'),
+              ),
+              const SizedBox(height: 16), // Spacing for new button
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/posts');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('View My Posts'),
               ),
             ],
           ),

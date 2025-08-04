@@ -79,6 +79,11 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Post saved successfully!')));
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/posts',
+      (route) => false,
+    ); // Navigate to PostListScreen
   }
 
   @override
@@ -161,7 +166,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Submit Post'),
+                child: const Text('Post'),
               ),
               if (_successMessage != null)
                 Padding(
