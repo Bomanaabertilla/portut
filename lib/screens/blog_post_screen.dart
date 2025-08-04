@@ -86,10 +86,25 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     ); // Navigate to PostListScreen
   }
 
+  void _navigateToHome() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/',
+      (route) => false,
+    ); // Navigate to HomeScreen (root)
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Blog Post')),
+      appBar: AppBar(
+        title: const Text('Create Blog Post'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _navigateToHome,
+          tooltip: 'Back to Home',
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -166,7 +181,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Post'),
+                child: const Text('Submit Post'),
               ),
               if (_successMessage != null)
                 Padding(
@@ -176,6 +191,15 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                     style: const TextStyle(color: Colors.green),
                   ),
                 ),
+              const SizedBox(height: 16), // Spacing for new button
+              ElevatedButton(
+                onPressed: _navigateToHome,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Back to Home'),
+              ),
             ],
           ),
         ),
