@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/password_reset_screen.dart'; 
+import 'screens/password_reset_screen.dart';
+import 'screens/blog_post_screen.dart'; 
 import 'services/auth_service.dart';
 
 void main() {
@@ -22,7 +23,8 @@ class MyApp extends StatelessWidget {
       ),
       home: const AuthWrapper(),
       routes: {
-        '/reset': (context) => const PasswordResetScreen(), // Ensure this matches
+        '/reset': (context) => const PasswordResetScreen(), // Existing route
+        '/create': (context) => const BlogPostScreen(), // Add this route
       },
     );
   }

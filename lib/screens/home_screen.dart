@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'blog_post_screen.dart'; 
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -104,10 +105,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: const Text('Logout'),
               ),
+              const SizedBox(height: 16), // Spacing for new button
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/create');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Create Blog Post'),
+              ),
             ],
           ),
         ),
       ),
     );
   }
-} 
+}

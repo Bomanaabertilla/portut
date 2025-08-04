@@ -30,7 +30,9 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
             const SizedBox(height: 20),
             TextField(
               controller: _newPasswordController,
-              decoration: const InputDecoration(labelText: 'New Password (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'New Password (optional)',
+              ),
               obscureText: true,
             ),
             const SizedBox(height: 20),
