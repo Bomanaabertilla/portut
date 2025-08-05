@@ -38,7 +38,10 @@ class _PostListScreenState extends State<PostListScreen> {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((key) => key.startsWith('post_')).toList();
+    final keys = prefs
+        .getKeys()
+        .where((key) => key.startsWith('post_'))
+        .toList();
     print('Found keys: $keys'); // Debug print
     final posts = <Map<String, String>>[];
 
@@ -84,36 +87,48 @@ class _PostListScreenState extends State<PostListScreen> {
       body: _currentUser == null
           ? const Center(child: CircularProgressIndicator())
           : _posts.isEmpty
-              ? const Center(child: Text('No posts yet.'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: _posts.length,
-                  itemBuilder: (context, index) {
-                    final post = _posts[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 16.0),
-                      child: ListTile(
-                        title: Text(post['content']!.isNotEmpty ? post['content']! : 'No content'),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Author: ${post['author']}'),
-                            Text('Visibility: ${post['visibility']}'),
-                            Text('Date: ${post['timestamp']}'),
-                            if (post['file']!.isNotEmpty)
-                              Text('File: ${post['file']!.split('/').last}'),
-                          ],
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () {
-                            Navigator.pushNamed(context, '/create', arguments: post['key']);
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
+          ? const Center(child: Text('No posts yet.'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _posts.length,
+              itemBuilder: (context, index) {
+                final post = _posts[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 16.0),
+                  child: ListTile(
+                    title: Text(
+                      post['content']!.isNotEmpty
+                          ? post['content']!
+                          : 'No content',
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Author: ${post['author']}'),
+                        Text('Visibility: ${post['visibility']}'),
+                        Text('Date: ${post['timestamp']}'),
+                        if (post['file']!.isNotEmpty)
+                          Text('File: ${post['file']!.split('/').last}'),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () {
+                        print(
+                          'Navigating to edit for post key: ${post['key']}',
+                        ); // Debug print
+                        Navigator.pushNamed(
+                          context,
+                          '/create',
+                          arguments: post['key'],
+                        );
+                      },
+                      tooltip: 'Edit Post',
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
