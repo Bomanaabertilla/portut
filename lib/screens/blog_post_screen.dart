@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
+import '../models/user.dart';
+import '../services/auth_service.dart';
 
 class BlogPostScreen extends StatefulWidget {
-  const BlogPostScreen({super.key});
+  final String? postKey; // Pass postKey for editing, null for creating
+  const BlogPostScreen({super.key, this.postKey});
 
   @override
   State<BlogPostScreen> createState() => _BlogPostScreenState();
@@ -17,6 +20,54 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
   File? _selectedFile;
   String? _successMessage;
   bool _isPublic = true; // Default to Public (true), false for Private
+  final _authService = AuthService();
+  User? _currentUser;
+  bool _isLoading = true;
+  String? _currentFilePath; // New state variable to store the current file path
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+    _loadPostData();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final user = await _authService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUser = user;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadPostData() async {
+    if (widget.postKey != null && _currentUser != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final author = prefs.getString('${widget.postKey}_author');
+      if (author != _currentUser!.username) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You can only edit your own posts')),
+          );
+          Navigator.pop(context); // Return to previous screen
+        }
+        return;
+      }
+      _contentController.text =
+          prefs.getString('${widget.postKey}_content') ?? '';
+      _authorController.text = author ?? '';
+      _isPublic = prefs.getString('${widget.postKey}_visibility') == 'Public';
+      final filePath = prefs.getString('${widget.postKey}_file');
+      if (filePath != null) {
+        setState(() {
+          _selectedFile = File(filePath);
+          _currentFilePath = filePath; // Store the current file path in state
+        });
+      }
+    }
+  }
 
   Future<void> _pickFile() async {
     try {
@@ -57,48 +108,56 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
       return;
     }
 
-    final postKey = 'post_$timestamp';
+    final postKey = widget.postKey ?? 'post_$timestamp';
     await prefs.setString('${postKey}_content', content);
     await prefs.setString('${postKey}_author', author);
     await prefs.setString('${postKey}_timestamp', timestamp);
     await prefs.setString(
       '${postKey}_visibility',
       _isPublic ? 'Public' : 'Private',
-    ); // Save visibility
+    );
     if (filePath != null) {
       await prefs.setString('${postKey}_file', filePath);
+    } else if (widget.postKey != null) {
+      prefs.remove('${widget.postKey}_file');
     }
 
     setState(() {
-      _successMessage = 'Post created successfully!';
+      _successMessage = widget.postKey == null
+          ? 'Post created successfully!'
+          : 'Post updated successfully!';
       _contentController.clear();
       _authorController.clear();
       _selectedFile = null;
     });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Post saved successfully!')));
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/posts',
-      (route) => false,
-    ); // Navigate to PostListScreen
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.postKey == null
+              ? 'Post saved successfully!'
+              : 'Post updated successfully!',
+        ),
+      ),
+    );
+    Navigator.pushNamedAndRemoveUntil(context, '/posts', (route) => false);
   }
 
   void _navigateToHome() {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/',
-      (route) => false,
-    ); // Navigate to HomeScreen (root)
+    Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Blog Post'),
+        title: Text(
+          widget.postKey == null ? 'Create Blog Post' : 'Edit Blog Post',
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: _navigateToHome,
@@ -115,6 +174,9 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
               TextFormField(
                 controller: _authorController,
                 decoration: const InputDecoration(labelText: 'Author'),
+                enabled:
+                    widget.postKey ==
+                    null, // Disable editing author for existing posts
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter your name';
@@ -151,7 +213,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Visibility: ${_isPublic ? 'Public' : 'Private'}', // Indicate chosen visibility
+                'Visibility: ${_isPublic ? 'Public' : 'Private'}',
                 style: const TextStyle(
                   fontSize: 16,
                   fontStyle: FontStyle.italic,
@@ -174,6 +236,15 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                     'Selected: ${_selectedFile!.path.split('/').last}',
                   ),
                 ),
+              if (widget.postKey != null &&
+                  _selectedFile == null &&
+                  _currentFilePath != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Current File: ${_currentFilePath!.split('/').last}',
+                  ),
+                ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _savePost,
@@ -181,7 +252,9 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                   backgroundColor: Colors.deepPurple,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('Submit Post'),
+                child: Text(
+                  widget.postKey == null ? 'Submit Post' : 'Update Post',
+                ),
               ),
               if (_successMessage != null)
                 Padding(
@@ -191,7 +264,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                     style: const TextStyle(color: Colors.green),
                   ),
                 ),
-              const SizedBox(height: 16), // Spacing for new button
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _navigateToHome,
                 style: ElevatedButton.styleFrom(

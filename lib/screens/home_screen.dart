@@ -60,18 +60,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.home,
-                size: 80,
-                color: Colors.deepPurple,
-              ),
+              const Icon(Icons.home, size: 80, color: Colors.deepPurple),
               const SizedBox(height: 24),
               const Text(
                 'Welcome!',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               if (_currentUser != null) ...[
@@ -99,15 +92,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _logout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Logout'),
-              ),
-              const SizedBox(height: 16), // Spacing for new button
-              ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/create');
                 },
@@ -117,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: const Text('Create Blog Post'),
               ),
-              const SizedBox(height: 16), // Spacing for new button
+              const SizedBox(height: 16), // Spacing for next button
               ElevatedButton(
                 onPressed: () {
                   Navigator.pushNamed(context, '/posts');
@@ -127,6 +111,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('View My Posts'),
+              ),
+              const SizedBox(height: 16), // Spacing for logout button
+              ElevatedButton(
+                onPressed: _logout,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Logout'),
               ),
             ],
           ),
