@@ -1,35 +1,27 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:file_picker/file_picker.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 
 class BlogPostScreen extends StatefulWidget {
-  final String? postKey; // Pass postKey for editing, null for creating
-  const BlogPostScreen({super.key, this.postKey});
+  const BlogPostScreen({super.key});
 
   @override
   State<BlogPostScreen> createState() => _BlogPostScreenState();
 }
 
 class _BlogPostScreenState extends State<BlogPostScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _contentController = TextEditingController();
-  final _authorController = TextEditingController();
-  File? _selectedFile;
-  String? _successMessage;
-  bool _isPublic = true; // Default to Public (true), false for Private
   final _authService = AuthService();
   User? _currentUser;
   bool _isLoading = true;
-  String? _currentFilePath; // New state variable to store the current file path
+  List<BlogPost> _posts = [];
+  bool _showPublicOnly = true;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
-    _loadPostData();
   }
 
   Future<void> _loadCurrentUser() async {
@@ -37,246 +29,399 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     if (mounted) {
       setState(() {
         _currentUser = user;
+      });
+      await _loadPosts();
+    }
+  }
+
+  Future<void> _loadPosts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+    final List<BlogPost> posts = [];
+
+    final postKeys = keys
+        .where((key) => key.endsWith('_timestamp'))
+        .map((key) => key.replaceAll('_timestamp', ''))
+        .toList();
+
+    for (final postKey in postKeys) {
+      final content = prefs.getString('${postKey}_content') ?? '';
+      final author = prefs.getString('${postKey}_author') ?? '';
+      final timestamp = prefs.getString('${postKey}_timestamp') ?? '';
+      final visibility = prefs.getString('${postKey}_visibility') ?? 'Public';
+      final filePath = prefs.getString('${postKey}_file');
+
+      // Filter posts based on visibility and current user
+      if (_showPublicOnly) {
+        if (visibility == 'Public') {
+          posts.add(
+            BlogPost(
+              key: postKey,
+              content: content,
+              author: author,
+              timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
+              visibility: visibility,
+              filePath: filePath,
+            ),
+          );
+        }
+      } else {
+        // Show all posts for logged-in user
+        if (_currentUser != null &&
+            (visibility == 'Public' || author == _currentUser!.username)) {
+          posts.add(
+            BlogPost(
+              key: postKey,
+              content: content,
+              author: author,
+              timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
+              visibility: visibility,
+              filePath: filePath,
+            ),
+          );
+        }
+      }
+    }
+
+    // Sort posts by timestamp (newest first)
+    posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (mounted) {
+      setState(() {
+        _posts = posts;
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _loadPostData() async {
-    if (widget.postKey != null && _currentUser != null) {
-      final prefs = await SharedPreferences.getInstance();
-      final author = prefs.getString('${widget.postKey}_author');
-      if (author != _currentUser!.username) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You can only edit your own posts')),
-          );
-          Navigator.pop(context); // Return to previous screen
-        }
-        return;
-      }
-      _contentController.text =
-          prefs.getString('${widget.postKey}_content') ?? '';
-      _authorController.text = author ?? '';
-      _isPublic = prefs.getString('${widget.postKey}_visibility') == 'Public';
-      final filePath = prefs.getString('${widget.postKey}_file');
-      if (filePath != null) {
-        setState(() {
-          _selectedFile = File(filePath);
-          _currentFilePath = filePath; // Store the current file path in state
-        });
-      }
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inMinutes < 1) {
+      return 'now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d';
+    } else {
+      return '${(difference.inDays / 7).floor()}w';
     }
   }
 
-  Future<void> _pickFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'png', 'pdf', 'doc', 'docx'],
-      );
-      if (result != null &&
-          result.files.isNotEmpty &&
-          result.files.first.path != null) {
-        setState(() {
-          _selectedFile = File(result.files.first.path!);
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to pick file: $e')));
-    }
-  }
+  Widget _buildPostCard(BlogPost post) {
+    final isMyPost =
+        _currentUser != null && post.author == _currentUser!.username;
 
-  Future<void> _savePost() async {
-    if (!_formKey.currentState!.validate()) return;
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.grey[900],
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Post header with avatar, name, and timestamp
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Colors.deepPurple,
+                  radius: 20,
+                  child: Text(
+                    post.author.isNotEmpty ? post.author[0].toUpperCase() : 'A',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            post.author,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (post.visibility == 'Private')
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Private',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      Text(
+                        _formatTimestamp(post.timestamp),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isMyPost)
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        Navigator.pushNamed(
+                          context,
+                          '/create-post',
+                          arguments: post.key,
+                        ).then((_) => _loadPosts());
+                      } else if (value == 'delete') {
+                        _deletePost(post.key);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete'),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
 
-    final prefs = await SharedPreferences.getInstance();
-    final timestamp = DateTime.now().toIso8601String();
-    final author = _authorController.text.trim();
-    final content = _contentController.text.trim();
-    final filePath = _selectedFile?.path;
+            const SizedBox(height: 12),
 
-    if (content.isEmpty && filePath == null) {
-      setState(() {
-        _successMessage = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please provide text or a file')),
-      );
-      return;
-    }
+            // Post content
+            if (post.content.isNotEmpty)
+              Text(
+                post.content,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.white,
+                  height: 1.4,
+                ),
+              ),
 
-    final postKey = widget.postKey ?? 'post_$timestamp';
-    await prefs.setString('${postKey}_content', content);
-    await prefs.setString('${postKey}_author', author);
-    await prefs.setString('${postKey}_timestamp', timestamp);
-    await prefs.setString(
-      '${postKey}_visibility',
-      _isPublic ? 'Public' : 'Private',
-    );
-    if (filePath != null) {
-      await prefs.setString('${postKey}_file', filePath);
-    } else if (widget.postKey != null) {
-      prefs.remove('${widget.postKey}_file');
-    }
+            // File attachment indicator
+            if (post.filePath != null)
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[800],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[700]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getFileIcon(post.filePath!),
+                      color: Colors.deepPurple,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        post.filePath!.split('/').last,
+                        style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-    setState(() {
-      _successMessage = widget.postKey == null
-          ? 'Post created successfully!'
-          : 'Post updated successfully!';
-      _contentController.clear();
-      _authorController.clear();
-      _selectedFile = null;
-    });
+            const SizedBox(height: 12),
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          widget.postKey == null
-              ? 'Post saved successfully!'
-              : 'Post updated successfully!',
+            // Action buttons (like, comment, share - for UI consistency)
+            Row(
+              children: [
+                _buildActionButton(Icons.favorite_border, '0'),
+                const SizedBox(width: 24),
+                _buildActionButton(Icons.chat_bubble_outline, '0'),
+                const SizedBox(width: 24),
+                _buildActionButton(Icons.share, '0'),
+                const Spacer(),
+                _buildActionButton(Icons.bookmark_border, ''),
+              ],
+            ),
+          ],
         ),
       ),
     );
-    Navigator.pushNamedAndRemoveUntil(context, '/posts', (route) => false);
   }
 
-  void _navigateToHome() {
-    Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+  Widget _buildActionButton(IconData icon, String count) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.grey[400], size: 20),
+        if (count.isNotEmpty) ...[
+          const SizedBox(width: 4),
+          Text(count, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+        ],
+      ],
+    );
+  }
+
+  IconData _getFileIcon(String filePath) {
+    final extension = filePath.split('.').last.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'jpg':
+      case 'png':
+        return Icons.image;
+      default:
+        return Icons.attach_file;
+    }
+  }
+
+  Future<void> _deletePost(String postKey) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Post'),
+        content: const Text('Are you sure you want to delete this post?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${postKey}_content');
+      await prefs.remove('${postKey}_author');
+      await prefs.remove('${postKey}_timestamp');
+      await prefs.remove('${postKey}_visibility');
+      await prefs.remove('${postKey}_file');
+
+      await _loadPosts();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post deleted successfully')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(
-          widget.postKey == null ? 'Create Blog Post' : 'Edit Blog Post',
+        backgroundColor: Colors.black,
+        title: const Text(
+          'Blog Posts',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: _navigateToHome,
-          tooltip: 'Back to Home',
-        ),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(
+              _showPublicOnly ? Icons.public : Icons.person,
+              color: Colors.white,
+            ),
+            onPressed: () {
+              setState(() {
+                _showPublicOnly = !_showPublicOnly;
+              });
+              _loadPosts();
+            },
+            tooltip: _showPublicOnly ? 'Show All Posts' : 'Show Public Posts',
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _authorController,
-                decoration: const InputDecoration(labelText: 'Author'),
-                enabled:
-                    widget.postKey ==
-                    null, // Disable editing author for existing posts
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _contentController,
-                decoration: const InputDecoration(
-                  labelText: 'Content',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 5,
-                validator: (value) => null, // No validation, optional field
-              ),
-              const SizedBox(height: 16),
-              const Text('Visibility:', style: TextStyle(fontSize: 16)),
-              Row(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _posts.isEmpty
+          ? Center(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Private'),
-                  Switch(
-                    value: _isPublic,
-                    onChanged: (value) {
-                      setState(() {
-                        _isPublic = value;
-                      });
-                    },
+                  Icon(
+                    Icons.article_outlined,
+                    size: 64,
+                    color: Colors.grey[600],
                   ),
-                  const Text('Public'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No posts yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey[400]),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Be the first to create a post!',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Visibility: ${_isPublic ? 'Public' : 'Private'}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
+            )
+          : RefreshIndicator(
+              onRefresh: _loadPosts,
+              child: ListView.builder(
+                itemCount: _posts.length,
+                itemBuilder: (context, index) {
+                  return _buildPostCard(_posts[index]);
+                },
               ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _pickFile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Upload File'),
-              ),
-              if (_selectedFile != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Selected: ${_selectedFile!.path.split('/').last}',
-                  ),
-                ),
-              if (widget.postKey != null &&
-                  _selectedFile == null &&
-                  _currentFilePath != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    'Current File: ${_currentFilePath!.split('/').last}',
-                  ),
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _savePost,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(
-                  widget.postKey == null ? 'Submit Post' : 'Update Post',
-                ),
-              ),
-              if (_successMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    _successMessage!,
-                    style: const TextStyle(color: Colors.green),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _navigateToHome,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Back to Home'),
-              ),
-            ],
-          ),
-        ),
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.pushNamed(
+            context,
+            '/create-post',
+          ).then((_) => _loadPosts());
+        },
+        backgroundColor: Colors.deepPurple,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
+}
+
+class BlogPost {
+  final String key;
+  final String content;
+  final String author;
+  final DateTime timestamp;
+  final String visibility;
+  final String? filePath;
+
+  BlogPost({
+    required this.key,
+    required this.content,
+    required this.author,
+    required this.timestamp,
+    required this.visibility,
+    this.filePath,
+  });
 }
