@@ -1,8 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
-import '../services/auth_service.dart';
+import 'package:intl/intl.dart';
 
 class BlogPostScreen extends StatefulWidget {
   const BlogPostScreen({super.key});
@@ -12,416 +9,220 @@ class BlogPostScreen extends StatefulWidget {
 }
 
 class _BlogPostScreenState extends State<BlogPostScreen> {
-  final _authService = AuthService();
-  User? _currentUser;
-  bool _isLoading = true;
-  List<BlogPost> _posts = [];
-  bool _showPublicOnly = true;
+  final List<Map<String, dynamic>> _posts = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentUser();
-  }
-
-  Future<void> _loadCurrentUser() async {
-    final user = await _authService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _currentUser = user;
+  void _addPost(String content) {
+    setState(() {
+      _posts.insert(0, {
+        'content': content,
+        'likes': 0,
+        'comments': <Map<String, String>>[],
+        'bookmarked': false,
+        'liked': false,
+        'showComments': false,
       });
-      await _loadPosts();
-    }
+    });
+    _showSnackBar('Post added');
   }
 
-  Future<void> _loadPosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    final List<BlogPost> posts = [];
-
-    final postKeys = keys
-        .where((key) => key.endsWith('_timestamp'))
-        .map((key) => key.replaceAll('_timestamp', ''))
-        .toList();
-
-    for (final postKey in postKeys) {
-      final content = prefs.getString('${postKey}_content') ?? '';
-      final author = prefs.getString('${postKey}_author') ?? '';
-      final timestamp = prefs.getString('${postKey}_timestamp') ?? '';
-      final visibility = prefs.getString('${postKey}_visibility') ?? 'Public';
-      final filePath = prefs.getString('${postKey}_file');
-
-      // Filter posts based on visibility and current user
-      if (_showPublicOnly) {
-        if (visibility == 'Public') {
-          posts.add(
-            BlogPost(
-              key: postKey,
-              content: content,
-              author: author,
-              timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
-              visibility: visibility,
-              filePath: filePath,
-            ),
-          );
-        }
+  void _toggleLike(int index) {
+    setState(() {
+      if (_posts[index]['liked']) {
+        _posts[index]['likes']--;
+        _showSnackBar('Like removed');
       } else {
-        // Show all posts for logged-in user
-        if (_currentUser != null &&
-            (visibility == 'Public' || author == _currentUser!.username)) {
-          posts.add(
-            BlogPost(
-              key: postKey,
-              content: content,
-              author: author,
-              timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
-              visibility: visibility,
-              filePath: filePath,
-            ),
-          );
-        }
+        _posts[index]['likes']++;
+        _showSnackBar('Post liked');
       }
-    }
+      _posts[index]['liked'] = !_posts[index]['liked'];
+    });
+  }
 
-    // Sort posts by timestamp (newest first)
-    posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  void _toggleBookmark(int index) {
+    setState(() {
+      _posts[index]['bookmarked'] = !_posts[index]['bookmarked'];
+      _showSnackBar(
+        _posts[index]['bookmarked'] ? 'Post bookmarked' : 'Bookmark removed',
+      );
+    });
+  }
 
-    if (mounted) {
-      setState(() {
-        _posts = posts;
-        _isLoading = false;
+  void _addComment(int index, String user, String text) {
+    final timestamp = DateFormat('MMM d, h:mm a').format(DateTime.now());
+    setState(() {
+      _posts[index]['comments'].add({
+        'user': user,
+        'text': text,
+        'time': timestamp,
       });
-    }
+    });
+    _showSnackBar('Comment added');
   }
 
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
-    } else {
-      return '${(difference.inDays / 7).floor()}w';
-    }
-  }
-
-  Widget _buildPostCard(BlogPost post) {
-    final isMyPost =
-        _currentUser != null && post.author == _currentUser!.username;
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.grey[900],
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  void _showCommentDialog(int index) {
+    String username = '';
+    String comment = '';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Comment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Post header with avatar, name, and timestamp
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.deepPurple,
-                  radius: 20,
-                  child: Text(
-                    post.author.isNotEmpty ? post.author[0].toUpperCase() : 'A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            post.author,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (post.visibility == 'Private')
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Private',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                      Text(
-                        _formatTimestamp(post.timestamp),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                      ),
-                    ],
-                  ),
-                ),
-                if (isMyPost)
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: Colors.grey[400]),
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        Navigator.pushNamed(
-                          context,
-                          '/create-post',
-                          arguments: post.key,
-                        ).then((_) => _loadPosts());
-                      } else if (value == 'delete') {
-                        _deletePost(post.key);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete'),
-                      ),
-                    ],
-                  ),
-              ],
+            TextField(
+              decoration: const InputDecoration(labelText: 'Your Name'),
+              onChanged: (value) => username = value,
             ),
-
-            const SizedBox(height: 12),
-
-            // Post content
-            if (post.content.isNotEmpty)
-              Text(
-                post.content,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.white,
-                  height: 1.4,
-                ),
-              ),
-
-            // File attachment indicator
-            if (post.filePath != null)
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[700]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _getFileIcon(post.filePath!),
-                      color: Colors.deepPurple,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        post.filePath!.split('/').last,
-                        style: TextStyle(color: Colors.grey[300], fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 12),
-
-            // Action buttons (like, comment, share - for UI consistency)
-            Row(
-              children: [
-                _buildActionButton(Icons.favorite_border, '0'),
-                const SizedBox(width: 24),
-                _buildActionButton(Icons.chat_bubble_outline, '0'),
-                const SizedBox(width: 24),
-                _buildActionButton(Icons.share, '0'),
-                const Spacer(),
-                _buildActionButton(Icons.bookmark_border, ''),
-              ],
+            TextField(
+              decoration: const InputDecoration(labelText: 'Comment'),
+              onChanged: (value) => comment = value,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildActionButton(IconData icon, String count) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.grey[400], size: 20),
-        if (count.isNotEmpty) ...[
-          const SizedBox(width: 4),
-          Text(count, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
-        ],
-      ],
-    );
-  }
-
-  IconData _getFileIcon(String filePath) {
-    final extension = filePath.split('.').last.toLowerCase();
-    switch (extension) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'jpg':
-      case 'png':
-        return Icons.image;
-      default:
-        return Icons.attach_file;
-    }
-  }
-
-  Future<void> _deletePost(String postKey) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Post'),
-        content: const Text('Are you sure you want to delete this post?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            onPressed: () {
+              if (username.isNotEmpty && comment.isNotEmpty) {
+                _addComment(index, username, comment);
+              }
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Post'),
           ),
         ],
       ),
     );
+  }
 
-    if (confirmed == true) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('${postKey}_content');
-      await prefs.remove('${postKey}_author');
-      await prefs.remove('${postKey}_timestamp');
-      await prefs.remove('${postKey}_visibility');
-      await prefs.remove('${postKey}_file');
+  void _toggleComments(int index) {
+    setState(() {
+      _posts[index]['showComments'] = !_posts[index]['showComments'];
+    });
+  }
 
-      await _loadPosts();
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post deleted successfully')),
-        );
-      }
-    }
+  String _getInitials(String name) {
+    final parts = name.split(' ');
+    return parts.map((e) => e[0].toUpperCase()).join();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text(
-          'Blog Posts',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              _showPublicOnly ? Icons.public : Icons.person,
-              color: Colors.white,
-            ),
-            onPressed: () {
-              setState(() {
-                _showPublicOnly = !_showPublicOnly;
-              });
-              _loadPosts();
-            },
-            tooltip: _showPublicOnly ? 'Show All Posts' : 'Show Public Posts',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _posts.isEmpty
-          ? Center(
+      appBar: AppBar(title: const Text('Blog Posts')),
+      body: ListView.builder(
+        itemCount: _posts.length,
+        itemBuilder: (ctx, index) {
+          final post = _posts[index];
+          return Card(
+            margin: const EdgeInsets.all(10),
+            child: Padding(
+              padding: const EdgeInsets.all(15),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.article_outlined,
-                    size: 64,
-                    color: Colors.grey[600],
+                  Text(post['content'], style: const TextStyle(fontSize: 16)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.favorite,
+                          color: post['liked'] ? Colors.red : Colors.grey,
+                        ),
+                        onPressed: () => _toggleLike(index),
+                      ),
+                      Text('${post['likes']}'),
+                      IconButton(
+                        icon: const Icon(Icons.comment),
+                        onPressed: () => _showCommentDialog(index),
+                      ),
+                      Text('${post['comments'].length}'),
+                      IconButton(
+                        icon: Icon(
+                          Icons.bookmark,
+                          color: post['bookmarked'] ? Colors.blue : Colors.grey,
+                        ),
+                        onPressed: () => _toggleBookmark(index),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => _toggleComments(index),
+                        child: Text(
+                          post['showComments']
+                              ? 'Hide Comments'
+                              : 'Show Comments',
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No posts yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Be the first to create a post!',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
+                  if (post['showComments'])
+                    Column(
+                      children: post['comments']
+                          .map<Widget>(
+                            (comment) => ListTile(
+                              leading: CircleAvatar(
+                                child: Text(
+                                  _getInitials(comment['user']!),
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                              title: Text(comment['user']!),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(comment['text']!),
+                                  Text(
+                                    comment['time']!,
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
                 ],
               ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadPosts,
-              child: ListView.builder(
-                itemCount: _posts.length,
-                itemBuilder: (context, index) {
-                  return _buildPostCard(_posts[index]);
-                },
-              ),
             ),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.pushNamed(
-            context,
-            '/create-post',
-          ).then((_) => _loadPosts());
+        onPressed: () async {
+          final controller = TextEditingController();
+          await showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('New Post'),
+              content: TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: 'Write something...',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    if (controller.text.isNotEmpty) {
+                      _addPost(controller.text);
+                    }
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Post'),
+                ),
+              ],
+            ),
+          );
         },
         backgroundColor: Colors.deepPurple,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
-}
-
-class BlogPost {
-  final String key;
-  final String content;
-  final String author;
-  final DateTime timestamp;
-  final String visibility;
-  final String? filePath;
-
-  BlogPost({
-    required this.key,
-    required this.content,
-    required this.author,
-    required this.timestamp,
-    required this.visibility,
-    this.filePath,
-  });
 }
