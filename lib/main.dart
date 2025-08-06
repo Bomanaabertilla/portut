@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/password_reset_screen.dart';
-import 'screens/blog_post_screen.dart';
-import 'screens/post_list_screen.dart'; 
-import 'services/auth_service.dart';
+import 'package:portut/screens/create_post_screen.dart';
+import 'package:portut/screens/login_screen.dart';
+import 'package:portut/screens/home_screen.dart';
+import 'package:portut/screens/password_reset_screen.dart';
+import 'package:portut/screens/post_list_screen.dart';
+import 'package:portut/screens/blog_post_screen.dart';
+import 'package:portut/services/auth_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -24,9 +25,10 @@ class MyApp extends StatelessWidget {
       ),
       home: const AuthWrapper(),
       routes: {
-        '/reset': (context) => const PasswordResetScreen(), // Existing route
-        '/create': (context) => const BlogPostScreen(), // Existing route
-        '/posts': (context) => const PostListScreen(), // New route for PostListScreen
+        '/reset': (context) => const PasswordResetScreen(),
+        '/create': (context) => const CreatePostScreen(),
+        '/posts': (context) => const PostListScreen(),
+        '/blog': (context) => const BlogPostScreen(),
       },
     );
   }
