@@ -11,24 +11,37 @@ void main() {
   runApp(const MyApp());
 }
 
+// Global theme notifier
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Portut App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const AuthWrapper(),
-      routes: {
-        '/reset': (context) => const PasswordResetScreen(),
-        '/create': (context) => const CreatePostScreen(),
-        '/posts': (context) => const PostListScreen(),
-        '/blog': (context) => const BlogPostScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Portut App',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData.dark().copyWith(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
+            useMaterial3: true,
+          ),
+          themeMode: mode,
+          home: const AuthWrapper(),
+          routes: {
+            '/reset': (context) => const PasswordResetScreen(),
+            '/create': (context) => const CreatePostScreen(),
+            '/posts': (context) => const PostListScreen(),
+            '/blog': (context) => const BlogPostScreen(),
+          },
+        );
       },
     );
   }
