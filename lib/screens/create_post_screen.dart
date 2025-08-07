@@ -119,7 +119,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.redAccent),
                     onPressed: () => setState(() => _selectedFile = null),
-                  )
+                  ),
                 ],
               ),
             const SizedBox(height: 10),
