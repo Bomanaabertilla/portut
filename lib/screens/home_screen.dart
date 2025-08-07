@@ -23,14 +23,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Define _activityStats with mock data
-  final Map<String, int> _activityStats = {
-    'posts': 10,
-    'likes': 50,
-    'views': 100,
-    'comments': 20,
-  };
-
   @override
   void initState() {
     super.initState();
@@ -357,54 +349,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   color: Colors.green,
                 ),
                 const SizedBox(height: 32),
-                // Stats Section
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Your Activity',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).textTheme.bodyLarge?.color,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildStatItem(
-                            'Posts',
-                            _activityStats['posts']?.toString() ?? '0',
-                            Icons.article,
-                          ),
-                          _buildStatItem(
-                            'Likes',
-                            _activityStats['likes']?.toString() ?? '0',
-                            Icons.favorite,
-                          ),
-                          _buildStatItem(
-                            'Views',
-                            _activityStats['views']?.toString() ?? '0',
-                            Icons.visibility,
-                          ),
-                          _buildStatItem(
-                            'Comments',
-                            _activityStats['comments']?.toString() ?? '0',
-                            Icons.comment,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
                 // Logout Button
                 SizedBox(
                   width: double.infinity,
@@ -445,30 +389,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         backgroundColor: Theme.of(context).primaryColor,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: Theme.of(context).primaryColor, size: 24),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Theme.of(context).textTheme.bodyLarge?.color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            color: Theme.of(context).textTheme.bodyMedium?.color,
-          ),
-        ),
-      ],
     );
   }
 }
