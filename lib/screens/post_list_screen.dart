@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
-import 'create_post_screen.dart';
 
 class PostListScreen extends StatefulWidget {
   const PostListScreen({super.key});
@@ -52,7 +52,19 @@ class _PostListScreenState extends State<PostListScreen> {
       final visibility = prefs.getString('${postKey}_visibility') ?? 'Public';
       final filePath = prefs.getString('${postKey}_file');
 
-      // Filter posts based on visibility and current user
+      final likeCount = prefs.getInt('${postKey}_likes') ?? 0;
+      final likedUsers = prefs.getStringList('${postKey}_liked_users') ?? [];
+      final isLikedByCurrentUser =
+          _currentUser != null && likedUsers.contains(_currentUser!.username);
+
+      final bookmarkedUsers =
+          prefs.getStringList('${postKey}_bookmarked_users') ?? [];
+      final isBookmarked =
+          _currentUser != null &&
+          bookmarkedUsers.contains(_currentUser!.username);
+
+      final comments = prefs.getStringList('${postKey}_comments') ?? [];
+
       if (_showPublicOnly) {
         if (visibility == 'Public') {
           posts.add(
@@ -63,11 +75,15 @@ class _PostListScreenState extends State<PostListScreen> {
               timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
               visibility: visibility,
               filePath: filePath,
+              likeCount: likeCount,
+              isLikedByCurrentUser: isLikedByCurrentUser,
+              comments: comments,
+              bookmarkCount: bookmarkedUsers.length,
+              isBookmarked: isBookmarked,
             ),
           );
         }
       } else {
-        // Show all posts for logged-in user
         if (_currentUser != null &&
             (visibility == 'Public' || author == _currentUser!.username)) {
           posts.add(
@@ -78,13 +94,17 @@ class _PostListScreenState extends State<PostListScreen> {
               timestamp: DateTime.tryParse(timestamp) ?? DateTime.now(),
               visibility: visibility,
               filePath: filePath,
+              likeCount: likeCount,
+              isLikedByCurrentUser: isLikedByCurrentUser,
+              comments: comments,
+              bookmarkCount: bookmarkedUsers.length,
+              isBookmarked: isBookmarked,
             ),
           );
         }
       }
     }
 
-    // Sort posts by timestamp (newest first)
     posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
     if (mounted) {
@@ -95,21 +115,168 @@ class _PostListScreenState extends State<PostListScreen> {
     }
   }
 
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
+  Future<void> _toggleLike(BlogPost post) async {
+    if (_currentUser == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final likedUsers = prefs.getStringList('${post.key}_liked_users') ?? [];
+    final username = _currentUser!.username;
 
-    if (difference.inMinutes < 1) {
-      return 'now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays}d';
+    if (likedUsers.contains(username)) {
+      likedUsers.remove(username);
     } else {
-      return '${(difference.inDays / 7).floor()}w';
+      likedUsers.add(username);
     }
+
+    await prefs.setInt('${post.key}_likes', likedUsers.length);
+    await prefs.setStringList('${post.key}_liked_users', likedUsers);
+
+    await _loadPosts();
+  }
+
+  Future<void> _toggleBookmark(BlogPost post) async {
+    if (_currentUser == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final bookmarkedUsers =
+        prefs.getStringList('${post.key}_bookmarked_users') ?? [];
+    final username = _currentUser!.username;
+
+    if (bookmarkedUsers.contains(username)) {
+      bookmarkedUsers.remove(username);
+    } else {
+      bookmarkedUsers.add(username);
+    }
+
+    await prefs.setStringList('${post.key}_bookmarked_users', bookmarkedUsers);
+    await _loadPosts();
+  }
+
+  void _showCommentsDialog(BlogPost post) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Comments', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...post.comments.map(
+              (c) => Align(
+                alignment: Alignment.centerLeft,
+                child: Text(c, style: const TextStyle(color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'Add a comment',
+                hintStyle: TextStyle(color: Colors.grey),
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final comment = controller.text.trim();
+              if (comment.isNotEmpty) {
+                final prefs = await SharedPreferences.getInstance();
+                final comments =
+                    prefs.getStringList('${post.key}_comments') ?? [];
+                comments.add('${_currentUser?.username ?? 'User'}: $comment');
+                await prefs.setStringList('${post.key}_comments', comments);
+                Navigator.pop(context);
+                await _loadPosts();
+              }
+            },
+            child: const Text(
+              'Post',
+              style: TextStyle(color: Colors.deepPurple),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentButton(BlogPost post) {
+    return GestureDetector(
+      onTap: () => _showCommentsDialog(post),
+      child: Row(
+        children: [
+          const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 20),
+          if (post.comments.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Text(
+              '${post.comments.length}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookmarkButton(BlogPost post) {
+    return GestureDetector(
+      onTap: () => _toggleBookmark(post),
+      child: Row(
+        children: [
+          Icon(
+            post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+            color: post.isBookmarked ? Colors.deepPurple : Colors.grey,
+            size: 20,
+          ),
+          if (post.bookmarkCount > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              '${post.bookmarkCount}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShareButton(BlogPost post) {
+    return GestureDetector(
+      onTap: () {
+        final content = '${post.author} shared:\n\n${post.content}';
+        Share.share(content);
+      },
+      child: const Icon(Icons.share, color: Colors.grey, size: 20),
+    );
+  }
+
+  Widget _buildLikeButton(BlogPost post) {
+    return GestureDetector(
+      onTap: () => _toggleLike(post),
+      child: Row(
+        children: [
+          Icon(
+            post.isLikedByCurrentUser ? Icons.favorite : Icons.favorite_border,
+            color: post.isLikedByCurrentUser ? Colors.red : Colors.grey,
+            size: 20,
+          ),
+          if (post.likeCount > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              '${post.likeCount}',
+              style: TextStyle(
+                color: post.isLikedByCurrentUser ? Colors.red : Colors.grey,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _buildPostCard(BlogPost post) {
@@ -124,18 +291,13 @@ class _PostListScreenState extends State<PostListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Post header with avatar, name, and timestamp
             Row(
               children: [
                 CircleAvatar(
                   backgroundColor: Colors.deepPurple,
-                  radius: 20,
                   child: Text(
-                    post.author.isNotEmpty ? post.author[0].toUpperCase() : 'A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    post.author.isNotEmpty ? post.author[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -143,37 +305,12 @@ class _PostListScreenState extends State<PostListScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            post.author,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          if (post.visibility == 'Private')
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.orange,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Private',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
+                      Text(
+                        post.author,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       Text(
                         _formatTimestamp(post.timestamp),
@@ -184,7 +321,7 @@ class _PostListScreenState extends State<PostListScreen> {
                 ),
                 if (isMyPost)
                   PopupMenuButton<String>(
-                    icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+                    icon: const Icon(Icons.more_vert, color: Colors.grey),
                     onSelected: (value) {
                       if (value == 'edit') {
                         Navigator.pushNamed(
@@ -206,60 +343,38 @@ class _PostListScreenState extends State<PostListScreen> {
                   ),
               ],
             ),
-
             const SizedBox(height: 12),
-
-            // Post content
             if (post.content.isNotEmpty)
-              Text(
-                post.content,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.white,
-                  height: 1.4,
-                ),
-              ),
-
-            // File attachment indicator
+              Text(post.content, style: const TextStyle(color: Colors.white)),
             if (post.filePath != null)
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[800],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey[700]!),
-                ),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
                 child: Row(
                   children: [
                     Icon(
                       _getFileIcon(post.filePath!),
                       color: Colors.deepPurple,
-                      size: 20,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         post.filePath!.split('/').last,
-                        style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                        style: const TextStyle(color: Colors.white),
                       ),
                     ),
                   ],
                 ),
               ),
-
             const SizedBox(height: 12),
-
-            // Action buttons (like, comment, share - for UI consistency)
             Row(
               children: [
-                _buildActionButton(Icons.favorite_border, '0'),
+                _buildLikeButton(post),
                 const SizedBox(width: 24),
-                _buildActionButton(Icons.chat_bubble_outline, '0'),
+                _buildCommentButton(post),
                 const SizedBox(width: 24),
-                _buildActionButton(Icons.share, '0'),
+                _buildShareButton(post),
                 const Spacer(),
-                _buildActionButton(Icons.bookmark_border, ''),
+                _buildBookmarkButton(post),
               ],
             ),
           ],
@@ -268,21 +383,38 @@ class _PostListScreenState extends State<PostListScreen> {
     );
   }
 
-  Widget _buildActionButton(IconData icon, String count) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.grey[400], size: 20),
-        if (count.isNotEmpty) ...[
-          const SizedBox(width: 4),
-          Text(count, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
-        ],
-      ],
-    );
+  Future<void> _deletePost(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('${key}_content');
+    await prefs.remove('${key}_author');
+    await prefs.remove('${key}_timestamp');
+    await prefs.remove('${key}_visibility');
+    await prefs.remove('${key}_file');
+    await prefs.remove('${key}_likes');
+    await prefs.remove('${key}_liked_users');
+    await prefs.remove('${key}_bookmarked_users');
+    await prefs.remove('${key}_comments');
+
+    await _loadPosts();
+  }
+
+  void _navigateToCreatePost() {
+    Navigator.pushNamed(context, '/create').then((_) => _loadPosts());
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${(diff.inDays / 7).floor()}w';
   }
 
   IconData _getFileIcon(String filePath) {
-    final extension = filePath.split('.').last.toLowerCase();
-    switch (extension) {
+    final ext = filePath.split('.').last.toLowerCase();
+    switch (ext) {
       case 'pdf':
         return Icons.picture_as_pdf;
       case 'doc':
@@ -296,63 +428,13 @@ class _PostListScreenState extends State<PostListScreen> {
     }
   }
 
-  Future<void> _deletePost(String postKey) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.grey[800],
-        title: const Text('Delete Post', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to delete this post?',
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('${postKey}_content');
-      await prefs.remove('${postKey}_author');
-      await prefs.remove('${postKey}_timestamp');
-      await prefs.remove('${postKey}_visibility');
-      await prefs.remove('${postKey}_file');
-
-      await _loadPosts();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Post deleted successfully')),
-        );
-      }
-    }
-  }
-
-  void _navigateToCreatePost() {
-    Navigator.pushNamed(context, '/create').then((_) => _loadPosts());
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
+        title: const Text('Posts', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.black,
-        title: const Text(
-          'Posts',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
         actions: [
           IconButton(
             icon: Icon(
@@ -365,12 +447,10 @@ class _PostListScreenState extends State<PostListScreen> {
               });
               _loadPosts();
             },
-            tooltip: _showPublicOnly ? 'Show All Posts' : 'Show Public Posts',
           ),
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: _navigateToCreatePost,
-            tooltip: 'Create New Post',
           ),
         ],
       ),
@@ -379,39 +459,10 @@ class _PostListScreenState extends State<PostListScreen> {
               child: CircularProgressIndicator(color: Colors.deepPurple),
             )
           : _posts.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.article_outlined,
-                    size: 64,
-                    color: Colors.grey[600],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No posts yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Be the first to create a post!',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: _navigateToCreatePost,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: const Text('Create Post'),
-                  ),
-                ],
+          ? const Center(
+              child: Text(
+                'No posts yet',
+                style: TextStyle(color: Colors.white),
               ),
             )
           : RefreshIndicator(
@@ -420,9 +471,7 @@ class _PostListScreenState extends State<PostListScreen> {
               color: Colors.deepPurple,
               child: ListView.builder(
                 itemCount: _posts.length,
-                itemBuilder: (context, index) {
-                  return _buildPostCard(_posts[index]);
-                },
+                itemBuilder: (context, index) => _buildPostCard(_posts[index]),
               ),
             ),
       floatingActionButton: FloatingActionButton(
@@ -441,6 +490,11 @@ class BlogPost {
   final DateTime timestamp;
   final String visibility;
   final String? filePath;
+  final int likeCount;
+  final bool isLikedByCurrentUser;
+  final List<String> comments;
+  final int bookmarkCount;
+  final bool isBookmarked;
 
   BlogPost({
     required this.key,
@@ -449,5 +503,10 @@ class BlogPost {
     required this.timestamp,
     required this.visibility,
     this.filePath,
+    this.likeCount = 0,
+    this.isLikedByCurrentUser = false,
+    this.comments = const [],
+    this.bookmarkCount = 0,
+    this.isBookmarked = false,
   });
 }

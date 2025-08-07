@@ -11,24 +11,85 @@ void main() {
   runApp(const MyApp());
 }
 
+// Global theme notifier (switches between light and dark)
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Portut App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const AuthWrapper(),
-      routes: {
-        '/reset': (context) => const PasswordResetScreen(),
-        '/create': (context) => const CreatePostScreen(),
-        '/posts': (context) => const PostListScreen(),
-        '/blog': (context) => const BlogPostScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Portut App',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            brightness: Brightness.light,
+            primaryColor: Colors.deepPurple,
+            scaffoldBackgroundColor: Colors.white,
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.white,
+              titleTextStyle: TextStyle(
+                color: Colors.black,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            cardColor: Colors.grey[100],
+            textTheme: TextTheme(
+              bodyLarge: const TextStyle(color: Colors.black, fontSize: 18),
+              bodyMedium: TextStyle(color: Colors.grey[700], fontSize: 14),
+            ),
+            iconTheme: const IconThemeData(color: Colors.black),
+            colorScheme:
+                ColorScheme.fromSeed(
+                  seedColor: Colors.deepPurple,
+                  brightness: Brightness.light,
+                ).copyWith(
+                  secondary: Colors.deepPurple, // Accent color
+                  error: Colors.red, // Error color for logout
+                ),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            primaryColor: Colors.deepPurple,
+            scaffoldBackgroundColor: Colors.black,
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.black,
+              titleTextStyle: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            cardColor: Colors.grey[900],
+            textTheme: TextTheme(
+              bodyLarge: TextStyle(color: Colors.white, fontSize: 18),
+              bodyMedium: TextStyle(color: Colors.grey[400], fontSize: 14),
+            ),
+            iconTheme: const IconThemeData(color: Colors.white),
+            colorScheme:
+                ColorScheme.fromSeed(
+                  seedColor: Colors.deepPurple,
+                  brightness: Brightness.dark,
+                ).copyWith(
+                  secondary: Colors.deepPurple,
+                  error: Colors.red, // Consistent error color
+                ),
+            useMaterial3: true,
+          ),
+          themeMode: mode, // Dynamically applies the theme
+          home: const AuthWrapper(),
+          routes: {
+            '/reset': (context) => const PasswordResetScreen(),
+            '/create': (context) => const CreatePostScreen(),
+            '/posts': (context) => const PostListScreen(),
+            '/blog': (context) => const BlogPostScreen(),
+          },
+        );
       },
     );
   }
@@ -65,7 +126,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.deepPurple),
+        ),
+      );
     }
 
     return _isLoggedIn ? const HomeScreen() : const LoginScreen();

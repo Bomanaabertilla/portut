@@ -27,6 +27,8 @@ class User {
     );
   }
 
+  get uid => null;
+
   // Create a copy of User with updated fields
   User copyWith({
     String? username,
