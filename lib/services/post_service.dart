@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:portut/utils/notifiers.dart';
 
 class PostService {
   static const String _postsKey = 'user_posts';
@@ -8,8 +9,14 @@ class PostService {
   Future<void> savePost(String userId, Map<String, dynamic> post) async {
     final prefs = await SharedPreferences.getInstance();
     final posts = await _getPosts(userId);
-    posts.add(post);
+    final updatedPost = {
+      ...post,
+      'comments': post['comments'] ?? [],
+      'replies': post['replies'] ?? [],
+    };
+    posts.add(updatedPost);
     await prefs.setString('$_postsKey:$userId', jsonEncode(posts));
+    statsNotifier.notifyStatsChanged(); // Notify UI
   }
 
   // Fetch user stats (posts count, total likes, total views, total comments)
@@ -21,24 +28,58 @@ class PostService {
       int totalComments = 0;
 
       for (var post in posts) {
-        totalLikes += (post['likes'] ?? 0) as int;
-        totalViews += (post['views'] ?? 0) as int;
-        totalComments += (post['comments'] ?? []).length as int;
+        totalLikes += (post['likes'] as num?)?.toInt() ?? 0;
+        totalViews += (post['views'] as num?)?.toInt() ?? 0;
+        final comments = post['comments'] as List? ?? [];
+        totalComments += comments.length;
+        final replies = post['replies'] as List? ?? [];
+        totalComments += replies.length;
       }
 
       return {
         'posts': posts.length,
         'likes': totalLikes,
         'views': totalViews,
-        'comments': totalComments, // Added for comment count
+        'comments': totalComments,
       };
     } catch (e) {
       print('Error fetching user stats: $e');
-      return {'posts': 0, 'likes': 0, 'views': 0, 'comments': 0};
+      return {
+        'posts': 0,
+        'likes': 0,
+        'views': 0,
+        'comments': 0,
+      };
     }
   }
 
-  // Update post stats (likes, views, likedUsers, bookmarkedUsers, comments)
+  // Add a reply to a comment
+  Future<void> addReply(
+    String userId,
+    String postId,
+    int commentIndex,
+    String reply,
+    String username,
+  ) async {
+    final posts = await _getPosts(userId);
+    final updatedPosts = posts.map((post) {
+      if (post['id'] == postId) {
+        final replies = List<String>.from(post['replies'] ?? []);
+        final timestamp = DateTime.now().toIso8601String();
+        replies.add('reply_to_${commentIndex}_${username}: $reply ($timestamp)');
+        return {
+          ...post,
+          'replies': replies,
+        };
+      }
+      return post;
+    }).toList();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_postsKey:$userId', jsonEncode(updatedPosts));
+    statsNotifier.notifyStatsChanged(); // Notify UI
+  }
+
+  // Update post stats (likes, views, likedUsers, bookmarkedUsers, comments, replies)
   Future<void> updatePostStats(
     String userId,
     String postId, {
@@ -47,6 +88,7 @@ class PostService {
     List<String>? likedUsers,
     List<String>? bookmarkedUsers,
     List<String>? comments,
+    List<String>? replies,
   }) async {
     final posts = await _getPosts(userId);
     final updatedPosts = posts.map((post) {
@@ -58,12 +100,14 @@ class PostService {
           'likedUsers': likedUsers ?? post['likedUsers'] ?? [],
           'bookmarkedUsers': bookmarkedUsers ?? post['bookmarkedUsers'] ?? [],
           'comments': comments ?? post['comments'] ?? [],
+          'replies': replies ?? post['replies'] ?? [],
         };
       }
       return post;
     }).toList();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_postsKey:$userId', jsonEncode(updatedPosts));
+    statsNotifier.notifyStatsChanged(); // Notify UI
   }
 
   // Delete a post
@@ -72,6 +116,7 @@ class PostService {
     final updatedPosts = posts.where((post) => post['id'] != postId).toList();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('$_postsKey:$userId', jsonEncode(updatedPosts));
+    statsNotifier.notifyStatsChanged(); // Notify UI
   }
 
   // Get posts for a user
@@ -99,7 +144,9 @@ class PostService {
     final allPosts = <Map<String, dynamic>>[];
     for (final uid in userIds) {
       final posts = await _getPosts(uid);
-      if (userId == null || userId == uid) {
+      if (userId == null) {
+        allPosts.addAll(posts.where((post) => post['visibility'] == 'Public'));
+      } else if (userId == uid) {
         allPosts.addAll(posts);
       }
     }

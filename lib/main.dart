@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:portut/screens/create_post_screen.dart';
 import 'package:portut/screens/login_screen.dart';
 import 'package:portut/screens/home_screen.dart';
@@ -6,9 +7,12 @@ import 'package:portut/screens/password_reset_screen.dart';
 import 'package:portut/screens/post_list_screen.dart';
 import 'package:portut/screens/blog_post_screen.dart';
 import 'package:portut/services/auth_service.dart';
+import 'package:portut/utils/notifiers.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(create: (_) => statsNotifier, child: const MyApp()),
+  );
 }
 
 // Global theme notifier (switches between light and dark)
@@ -43,14 +47,10 @@ class MyApp extends StatelessWidget {
               bodyMedium: TextStyle(color: Colors.grey[700], fontSize: 14),
             ),
             iconTheme: const IconThemeData(color: Colors.black),
-            colorScheme:
-                ColorScheme.fromSeed(
-                  seedColor: Colors.deepPurple,
-                  brightness: Brightness.light,
-                ).copyWith(
-                  secondary: Colors.deepPurple, // Accent color
-                  error: Colors.red, // Error color for logout
-                ),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.light,
+            ).copyWith(secondary: Colors.deepPurple, error: Colors.red),
             useMaterial3: true,
           ),
           darkTheme: ThemeData(
@@ -71,17 +71,13 @@ class MyApp extends StatelessWidget {
               bodyMedium: TextStyle(color: Colors.grey[400], fontSize: 14),
             ),
             iconTheme: const IconThemeData(color: Colors.white),
-            colorScheme:
-                ColorScheme.fromSeed(
-                  seedColor: Colors.deepPurple,
-                  brightness: Brightness.dark,
-                ).copyWith(
-                  secondary: Colors.deepPurple,
-                  error: Colors.red, // Consistent error color
-                ),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ).copyWith(secondary: Colors.deepPurple, error: Colors.red),
             useMaterial3: true,
           ),
-          themeMode: mode, // Dynamically applies the theme
+          themeMode: mode,
           home: const AuthWrapper(),
           routes: {
             '/reset': (context) => const PasswordResetScreen(),
@@ -120,6 +116,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
         _isLoggedIn = user != null;
         _isLoading = false;
       });
+      if (user == null) {
+        Provider.of<StatsNotifier>(context, listen: false).clearStats();
+      }
     }
   }
 
