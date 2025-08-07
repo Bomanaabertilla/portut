@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:portut/main.dart';
-import '../models/user.dart';
-import '../services/auth_service.dart';
-import 'login_screen.dart';
-import 'blog_post_screen.dart';
-import 'post_list_screen.dart';
 import 'create_post_screen.dart';
+import 'profile_screen.dart';
+import 'comment_screen.dart';
+import 'blog_post_screen.dart';
+
+class Post {
+  final String id;
+  final String title;
+  final String description;
+  final String authorName;
+  final String authorAvatar;
+  final String timestamp;
+  final int likes;
+  final int comments;
+
+  Post({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.authorName,
+    required this.authorAvatar,
+    required this.timestamp,
+    required this.likes,
+    required this.comments,
+  });
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,380 +33,397 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  final _authService = AuthService();
-  User? _currentUser;
-  bool _isLoading = true;
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+class _HomeScreenState extends State<HomeScreen> {
+  bool _showAllPosts = true; // Toggle between All Posts and My Posts
 
-  @override
-  void initState() {
-    super.initState();
-    _initAnimations();
-    _loadCurrentUser();
-  }
-
-  void _initAnimations() {
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
-        );
-  }
-
-  Future<void> _loadCurrentUser() async {
-    final user = await _authService.getCurrentUser();
-    if (mounted) {
-      setState(() {
-        _currentUser = user;
-        _isLoading = false;
-      });
-
-      // Start animations after user is loaded
-      _fadeController.forward();
-      Future.delayed(const Duration(milliseconds: 200), () {
-        _slideController.forward();
-      });
-    }
-  }
-
-  Future<void> _logout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text(
-          'Logout',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-        ),
-        content: Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _authService.logout();
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
-    }
-  }
-
-  Widget _buildActionCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    required Color color,
-  }) {
-    return Card(
-      color: Theme.of(context).cardColor,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).textTheme.bodyLarge?.color,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).textTheme.bodyMedium?.color,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                size: 16,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
-    super.dispose();
-  }
+  final List<Post> _posts = [
+    Post(
+      id: '1',
+      title: 'Building Responsive Layouts with Tailwind CSS',
+      description:
+          'Discover how to create beautiful, responsive designs using Tailwind CSS utility classes...',
+      authorName: 'Mike Chen',
+      authorAvatar:
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
+      timestamp: '1 day ago',
+      likes: 18,
+      comments: 6,
+    ),
+    Post(
+      id: '2',
+      title: 'JavaScript ES6 Features You Should Know',
+      description:
+          'Explore the most useful ES6 features that will make your JavaScript code more modern and efficient...',
+      authorName: 'Emma Davis',
+      authorAvatar:
+          'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face',
+      timestamp: '2 days ago',
+      likes: 31,
+      comments: 12,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.deepPurple),
-        ),
-      );
-    }
-
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
-        elevation: 0,
-        title: Text(
-          'Home',
-          style: Theme.of(context).appBarTheme.titleTextStyle,
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(
-              themeNotifier.value == ThemeMode.dark
-                  ? Icons.light_mode
-                  : Icons.dark_mode,
-              color: Theme.of(context).iconTheme.color,
-            ),
-            tooltip: themeNotifier.value == ThemeMode.dark
-                ? 'Switch to Light Mode'
-                : 'Switch to Dark Mode',
-            onPressed: () {
-              themeNotifier.value = themeNotifier.value == ThemeMode.dark
-                  ? ThemeMode.light
-                  : ThemeMode.dark;
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.logout, color: Theme.of(context).iconTheme.color),
-            onPressed: _logout,
-            tooltip: 'Logout',
-          ),
-        ],
-      ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Welcome Section
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Theme.of(context).primaryColor.withOpacity(0.8),
-                        Theme.of(context).primaryColor.withOpacity(0.4),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      backgroundColor: const Color(0xFFF5F5DC), // Light beige background
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  // App Title
+                  const Text(
+                    'PorTuT',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8B4513), // Dark brown
                     ),
-                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: Theme.of(context).cardColor,
-                            radius: 30,
-                            child: Text(
-                              _currentUser?.displayName.isNotEmpty == true
-                                  ? _currentUser!.displayName[0].toUpperCase()
-                                  : 'U',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Welcome!',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge
-                                        ?.color
-                                        ?.withOpacity(0.7),
-                                  ),
-                                ),
-                                Text(
-                                  _currentUser?.displayName ?? 'User',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                                  ),
-                                ),
-                                Text(
-                                  '@${_currentUser?.username ?? 'username'}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge
-                                        ?.color
-                                        ?.withOpacity(0.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                  const Spacer(),
+                  // Bookmark Icon
+                  GestureDetector(
+                    onTap: () {
+                      // Handle bookmark/saved posts
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Saved posts coming soon!'),
+                        ),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.bookmark_border,
+                      color: Color(0xFF8B4513),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // User Profile Picture
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
                       ),
-                      const SizedBox(height: 16),
+                      child: ClipOval(
+                        child: Image.network(
+                          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey[300],
+                              child: const Icon(
+                                Icons.person,
+                                size: 24,
+                                color: Colors.grey,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Navigation Tabs
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  // All Posts Button
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showAllPosts = true;
+                        });
+                      },
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: _showAllPosts
+                              ? const Color(0xFF8B4513)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF8B4513),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'All Posts',
+                            style: TextStyle(
+                              color: _showAllPosts
+                                  ? Colors.white
+                                  : const Color(0xFF8B4513),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // My Posts Button
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showAllPosts = false;
+                        });
+                      },
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: !_showAllPosts
+                              ? const Color(0xFF8B4513)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF8B4513),
+                            width: 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'My Posts',
+                            style: TextStyle(
+                              color: !_showAllPosts
+                                  ? Colors.white
+                                  : const Color(0xFF8B4513),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Posts List
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _posts.length,
+                itemBuilder: (context, index) {
+                  return _buildPostCard(_posts[index]);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CreatePostScreen()),
+          );
+        },
+        backgroundColor: const Color(0xFF8B4513),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildPostCard(Post post) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const BlogPostScreen()),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Post Title
+              Text(
+                post.title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF424242),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Post Content Snippet
+              Text(
+                post.description,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF424242),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Author Information
+              Row(
+                children: [
+                  // Author Profile Picture
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    ),
+                    child: ClipOval(
+                      child: Image.network(
+                        post.authorAvatar,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.person,
+                              size: 20,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Author Name
+                  Text(
+                    post.authorName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF424242),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Dot separator
+                  Container(
+                    width: 4,
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF424242),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Timestamp
+                  Text(
+                    post.timestamp,
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Interaction Icons
+              Row(
+                children: [
+                  // Likes
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.favorite_border,
+                        color: Color(0xFF424242),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 4),
                       Text(
-                        'Ready to share your thoughts with the world?',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Theme.of(
-                            context,
-                          ).textTheme.bodyLarge?.color?.withOpacity(0.7),
+                        post.likes.toString(),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF424242),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 32),
-                // Quick Actions Section
-                Text(
-                  'Quick Actions',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildActionCard(
-                  icon: Icons.create,
-                  title: 'Create New Post',
-                  subtitle: 'Share your thoughts and ideas',
-                  onTap: () => Navigator.pushNamed(context, '/create'),
-                  color: Theme.of(context).primaryColor,
-                ),
-                _buildActionCard(
-                  icon: Icons.article,
-                  title: 'View Posts',
-                  subtitle: 'Browse all your posts and others',
-                  onTap: () => Navigator.pushNamed(context, '/posts'),
-                  color: Colors.blue,
-                ),
-                _buildActionCard(
-                  icon: Icons.person,
-                  title: 'My Posts',
-                  subtitle: 'Manage your personal posts',
-                  onTap: () => Navigator.pushNamed(context, '/posts'),
-                  color: Colors.green,
-                ),
-                const SizedBox(height: 32),
-                // Logout Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _logout,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(
+                  const SizedBox(width: 24),
+                  // Comments
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
                         context,
-                      ).colorScheme.error.withOpacity(0.2),
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.error.withOpacity(0.3),
+                        MaterialPageRoute(
+                          builder: (context) => const CommentScreen(),
                         ),
-                      ),
-                    ),
-                    child: Text(
-                      'Logout',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.chat_bubble_outline,
+                          color: Color(0xFF424242),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          post.comments.toString(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF424242),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+                  const Spacer(),
+                  // Bookmark
+                  GestureDetector(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Post bookmarked!')),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.bookmark_border,
+                      color: Color(0xFF424242),
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/create'),
-        backgroundColor: Theme.of(context).primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

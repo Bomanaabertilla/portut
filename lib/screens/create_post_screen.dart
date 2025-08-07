@@ -1,11 +1,4 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import 'package:file_picker/file_picker.dart';
-import '../services/auth_service.dart';
-import '../models/user.dart';
-import 'package:path/path.dart' as path;
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -15,136 +8,354 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  final _controller = TextEditingController();
-  final _authService = AuthService();
-  bool _isSaving = false;
-  File? _selectedFile;
+  final _contentController = TextEditingController();
+  List<String> _uploadedFiles = [];
+  bool _isPublic = true; // Toggle for visibility
 
-  // File Picker Function
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.any);
-    if (result != null && result.files.single.path != null) {
-      setState(() => _selectedFile = File(result.files.single.path!));
-    }
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
   }
 
-  // Save Post Function
-  Future<void> _savePost() async {
-    final content = _controller.text.trim();
-    if (content.isEmpty && _selectedFile == null) return;
+  void _uploadMedia() {
+    // Handle media upload functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Media upload functionality coming soon!')),
+    );
+  }
 
-    setState(() => _isSaving = true);
-
-    final prefs = await SharedPreferences.getInstance();
-    final user = await _authService.getCurrentUser();
-    final now = DateTime.now();
-    final uuid = const Uuid().v4();
-
-    final key = uuid;
-    await prefs.setString('${key}_content', content);
-    await prefs.setString('${key}_author', user?.username ?? 'Anonymous');
-    await prefs.setString('${key}_timestamp', now.toIso8601String());
-    await prefs.setString('${key}_visibility', 'Public');
-
-    if (_selectedFile != null) {
-      await prefs.setString('${key}_file_path', _selectedFile!.path);
+  void _publishPost() {
+    if (_contentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please write some content for your post'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
 
+    // Handle post publishing
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Post published successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
     Navigator.pop(context);
-  }
-
-  // Get Icon for File
-  IconData _getFileIcon(String filePath) {
-    final ext = filePath.split('.').last.toLowerCase();
-    switch (ext) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-        return Icons.image;
-      default:
-        return Icons.attach_file;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('Create Post', style: TextStyle(color: Colors.white)),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      backgroundColor: const Color(0xFFF5F5DC), // Light beige background
+      body: SafeArea(
         child: Column(
           children: [
-            TextField(
-              controller: _controller,
-              maxLines: 8,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Write your post here...',
-                hintStyle: TextStyle(color: Colors.grey[500]),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.white),
-                ),
-                filled: true,
-                fillColor: Colors.grey[900],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // File preview
-            if (_selectedFile != null)
-              Row(
+            // Header
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
                 children: [
-                  Icon(
-                    _getFileIcon(_selectedFile!.path),
-                    color: Colors.deepPurpleAccent,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      path.basename(_selectedFile!.path),
-                      style: const TextStyle(color: Colors.white),
-                      overflow: TextOverflow.ellipsis,
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Color(0xFF424242),
+                      size: 24,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.redAccent),
-                    onPressed: () => setState(() => _selectedFile = null),
+                  const SizedBox(width: 16),
+                  const Text(
+                    'Create Post',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF424242),
+                    ),
                   ),
                 ],
               ),
-            const SizedBox(height: 10),
+            ),
 
-            // File Upload Button
-            ElevatedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Attach File'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[800],
-                foregroundColor: Colors.white,
+            // Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Content Section
+                    const Text(
+                      'Content',
+                      style: TextStyle(
+                        color: Color(0xFF424242),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _contentController,
+                        decoration: const InputDecoration(
+                          hintText: 'Write your post content here...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                        maxLines: 8,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black87,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Media Section
+                    const Text(
+                      'Media',
+                      style: TextStyle(
+                        color: Color(0xFF424242),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: _uploadMedia,
+                      child: Container(
+                        width: double.infinity,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.grey.withOpacity(0.3),
+                            style: BorderStyle.solid,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.cloud_upload,
+                              color: Color(0xFF8B4513),
+                              size: 32,
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Upload Images or PDFs',
+                              style: TextStyle(
+                                color: Color(0xFF8B4513),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Visibility Section
+                    Row(
+                      children: [
+                        const Text(
+                          'Visibility',
+                          style: TextStyle(
+                            color: Color(0xFF424242),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Toggle Switch
+                        Row(
+                          children: [
+                            Text(
+                              'Private',
+                              style: TextStyle(
+                                color: _isPublic
+                                    ? Colors.grey
+                                    : const Color(0xFF424242),
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _isPublic = !_isPublic;
+                                });
+                              },
+                              child: Container(
+                                width: 48,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: _isPublic
+                                      ? const Color(0xFF8B4513)
+                                      : Colors.grey,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    Positioned(
+                                      left: _isPublic ? 26 : 2,
+                                      top: 2,
+                                      child: Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Public',
+                              style: TextStyle(
+                                color: _isPublic
+                                    ? const Color(0xFF8B4513)
+                                    : Colors.grey,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    // Show uploaded files if any
+                    if (_uploadedFiles.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Uploaded Files:',
+                        style: TextStyle(
+                          color: Color(0xFF424242),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...(_uploadedFiles
+                          .map(
+                            (file) => Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: Colors.grey.withOpacity(0.2),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.attach_file,
+                                    color: Color(0xFF8B4513),
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      file,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _uploadedFiles.remove(file);
+                                      });
+                                    },
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.grey,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                          .toList()),
+                    ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 20),
 
-            // Save Post Button
-            ElevatedButton.icon(
-              onPressed: _isSaving ? null : _savePost,
-              icon: const Icon(Icons.save),
-              label: const Text('Post'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(50),
+            // Publish Post Button
+            Container(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8B4513), // Dark brown background
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF8B4513).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: _publishPost,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Publish Post',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
