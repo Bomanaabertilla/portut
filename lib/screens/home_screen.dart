@@ -341,13 +341,9 @@ class _HomeScreenState extends State<HomeScreen> {
         newPost.toMap(),
       );
 
-      // Update local list - add to the beginning
-      setState(() {
-        _posts.insert(0, newPost);
-      });
-
-      print('New post added: "${newPost.title}" by ${newPost.authorName}');
-      print('Total posts now: ${_posts.length}');
+      print(
+        'New post saved to service: "${newPost.title}" by ${newPost.authorName}',
+      );
 
       // Show success message
       if (mounted) {
@@ -547,7 +543,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -568,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -592,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -619,7 +615,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: theme.colorScheme.primary.withOpacity(0.2),
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.2,
+                          ),
                         ),
                       ),
                       child: ClipOval(
@@ -743,8 +741,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           Icon(
                             _showAllPosts ? Icons.public : Icons.person,
                             size: 64,
-                            color: theme.colorScheme.onBackground.withOpacity(
-                              0.4,
+                            color: theme.colorScheme.onBackground.withValues(
+                              alpha: 0.4,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -753,8 +751,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ? 'No public posts available'
                                 : 'No posts yet',
                             style: theme.textTheme.headlineMedium?.copyWith(
-                              color: theme.colorScheme.onBackground.withOpacity(
-                                0.6,
+                              color: theme.colorScheme.onBackground.withValues(
+                                alpha: 0.6,
                               ),
                             ),
                             textAlign: TextAlign.center,
@@ -768,7 +766,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   : 'Create your first post!',
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 color: theme.colorScheme.onBackground
-                                    .withOpacity(0.5),
+                                    .withValues(alpha: 0.5),
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -801,6 +799,10 @@ class _HomeScreenState extends State<HomeScreen> {
           if (result != null && result is Post) {
             print('Received new post from create screen: ${result.title}');
             await _addNewPost(result);
+            // Switch to "My Posts" to show the new post at the top
+            setState(() {
+              _showAllPosts = false;
+            });
             // Force refresh to ensure posts are loaded correctly
             await _loadPosts();
           }
@@ -835,7 +837,7 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: theme.colorScheme.onBackground.withOpacity(0.05),
+              color: theme.colorScheme.onBackground.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -864,7 +866,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.onBackground.withOpacity(0.1),
+                        color: theme.colorScheme.onBackground.withValues(
+                          alpha: 0.1,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -873,8 +877,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           Icon(
                             Icons.lock,
                             size: 12,
-                            color: theme.colorScheme.onBackground.withOpacity(
-                              0.6,
+                            color: theme.colorScheme.onBackground.withValues(
+                              alpha: 0.6,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -882,8 +886,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             'Private',
                             style: TextStyle(
                               fontSize: 10,
-                              color: theme.colorScheme.onBackground.withOpacity(
-                                0.6,
+                              color: theme.colorScheme.onBackground.withValues(
+                                alpha: 0.6,
                               ),
                               fontWeight: FontWeight.w500,
                             ),
@@ -914,7 +918,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: theme.colorScheme.onBackground.withOpacity(0.2),
+                        color: theme.colorScheme.onBackground.withValues(
+                          alpha: 0.2,
+                        ),
                       ),
                     ),
                     child: ClipOval(
@@ -961,7 +967,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text(
                       _formatTimestamp(post.timestamp),
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onBackground.withOpacity(0.6),
+                        color: theme.colorScheme.onBackground.withValues(
+                          alpha: 0.6,
+                        ),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
