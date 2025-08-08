@@ -3,6 +3,7 @@ import 'create_post_screen.dart';
 import 'profile_screen.dart';
 import 'comment_screen.dart';
 import 'blog_post_screen.dart';
+import 'bookmarks_screen.dart';
 
 class Post {
   final String id;
@@ -89,10 +90,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Bookmark Icon
                   GestureDetector(
                     onTap: () {
-                      // Handle bookmark/saved posts
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Saved posts coming soon!'),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const BookmarksScreen(),
                         ),
                       );
                     },

@@ -119,6 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: TextFormField(
                     controller: _usernameController,
+                    style: const TextStyle(color: Colors.black),
                     decoration: const InputDecoration(
                       hintText: 'Username',
                       border: InputBorder.none,
@@ -153,6 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
+                    style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Password',
                       border: InputBorder.none,

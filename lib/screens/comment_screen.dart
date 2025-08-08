@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'home_screen.dart';
 
 class Comment {
   final String id;
@@ -7,6 +8,7 @@ class Comment {
   final String comment;
   final String timestamp;
   final List<Comment> replies;
+  bool isLiked;
 
   Comment({
     required this.id,
@@ -15,6 +17,7 @@ class Comment {
     required this.comment,
     required this.timestamp,
     this.replies = const [],
+    this.isLiked = false,
   });
 }
 
@@ -70,13 +73,82 @@ class _CommentScreenState extends State<CommentScreen> {
         );
       });
       _commentController.clear();
+
+      // Navigate to home screen after adding comment
+      _navigateToHome();
     }
   }
 
   void _replyToComment(String commentId) {
-    // Handle reply functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Reply functionality coming soon!')),
+    // Show reply dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final replyController = TextEditingController();
+        return AlertDialog(
+          title: const Text('Reply to Comment'),
+          content: TextField(
+            controller: replyController,
+            decoration: const InputDecoration(
+              hintText: 'Write your reply...',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 3,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (replyController.text.trim().isNotEmpty) {
+                  // Add reply to the comment
+                  setState(() {
+                    final commentIndex = _comments.indexWhere(
+                      (c) => c.id == commentId,
+                    );
+                    if (commentIndex != -1) {
+                      _comments[commentIndex].replies.add(
+                        Comment(
+                          id: DateTime.now().millisecondsSinceEpoch.toString(),
+                          userName: 'Current User',
+                          userAvatar:
+                              'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
+                          comment: replyController.text.trim(),
+                          timestamp: 'Just now',
+                        ),
+                      );
+                    }
+                  });
+                  Navigator.of(context).pop();
+
+                  // Navigate to home screen after replying
+                  _navigateToHome();
+                }
+              },
+              child: const Text('Reply'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _toggleLike(String commentId) {
+    setState(() {
+      final commentIndex = _comments.indexWhere((c) => c.id == commentId);
+      if (commentIndex != -1) {
+        _comments[commentIndex].isLiked = !_comments[commentIndex].isLiked;
+      }
+    });
+  }
+
+  void _navigateToHome() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      (route) => false,
     );
   }
 
@@ -87,12 +159,42 @@ class _CommentScreenState extends State<CommentScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header with interaction icons
+            // Header with back button and interaction icons
             Container(
               color: Colors.white,
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
+                  // Back button and title row
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _navigateToHome,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Color(0xFF8B4513),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Comments',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF424242),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   // Interaction icons row
                   Row(
                     children: [
@@ -141,19 +243,6 @@ class _CommentScreenState extends State<CommentScreen> {
                         size: 20,
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Comments title
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Comments',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF424242),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -250,18 +339,139 @@ class _CommentScreenState extends State<CommentScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // Reply button
-                        GestureDetector(
-                          onTap: () => _replyToComment(comment.id),
-                          child: Text(
-                            'Reply',
-                            style: TextStyle(
-                              color: const Color(0xFF8B4513),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                        // Like and Reply buttons
+                        Row(
+                          children: [
+                            // Like button
+                            GestureDetector(
+                              onTap: () => _toggleLike(comment.id),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    comment.isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: comment.isLiked
+                                        ? Colors.red
+                                        : Colors.grey[600],
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    comment.isLiked ? 'Liked' : 'Like',
+                                    style: TextStyle(
+                                      color: comment.isLiked
+                                          ? Colors.red
+                                          : Colors.grey[600],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 16),
+                            // Reply button
+                            GestureDetector(
+                              onTap: () => _replyToComment(comment.id),
+                              child: Text(
+                                'Reply',
+                                style: TextStyle(
+                                  color: const Color(0xFF8B4513),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                        // Show replies if any
+                        if (comment.replies.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 12),
+                          ...comment.replies
+                              .map(
+                                (reply) => Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[50],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 24,
+                                            height: 24,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.grey.withOpacity(
+                                                  0.2,
+                                                ),
+                                              ),
+                                            ),
+                                            child: ClipOval(
+                                              child: Image.network(
+                                                reply.userAvatar,
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) {
+                                                      return Container(
+                                                        color: Colors.grey[300],
+                                                        child: const Icon(
+                                                          Icons.person,
+                                                          size: 12,
+                                                          color: Colors.grey,
+                                                        ),
+                                                      );
+                                                    },
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            reply.userName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            reply.timestamp,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        reply.comment,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black87,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ],
                       ],
                     ),
                   );

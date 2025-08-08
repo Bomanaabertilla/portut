@@ -127,6 +127,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                   child: TextFormField(
                     controller: _emailController,
+                    style: const TextStyle(color: Colors.black),
                     decoration: const InputDecoration(
                       hintText: 'Email',
                       border: InputBorder.none,
@@ -172,6 +173,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
+                    style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Password',
                       border: InputBorder.none,
@@ -227,6 +229,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
+                    style: const TextStyle(color: Colors.black),
                     decoration: InputDecoration(
                       hintText: 'Confirm Password',
                       border: InputBorder.none,
