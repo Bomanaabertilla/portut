@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'create_post_screen.dart';
 import 'profile_screen.dart';
 import 'blog_post_screen.dart';
 import 'bookmarks_screen.dart';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
+import '../providers/theme_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class Post {
@@ -522,39 +524,61 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final theme = Theme.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5DC), // Light beige background
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
             // Header
             Container(
-              color: Colors.white,
+              color: theme.appBarTheme.backgroundColor,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
                   // App Title
-                  const Text(
-                    'PorTuT',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF8B4513), // Dark brown
+                  Text('PorTuT', style: theme.textTheme.headlineLarge),
+                  const Spacer(),
+                  // Theme Toggle Button
+                  GestureDetector(
+                    onTap: () => themeProvider.toggleTheme(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        themeProvider.isDarkMode
+                            ? Icons.light_mode
+                            : Icons.dark_mode,
+                        color: theme.colorScheme.primary,
+                        size: 20,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 12),
                   // Refresh Button
                   GestureDetector(
                     onTap: _loadPosts,
                     onLongPress: _clearAndReinitializePosts,
                     onDoubleTap: _debugCurrentState,
-                    child: const Icon(
-                      Icons.refresh,
-                      color: Color(0xFF8B4513),
-                      size: 24,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.refresh,
+                        color: theme.colorScheme.primary,
+                        size: 20,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   // Bookmark Icon
                   GestureDetector(
                     onTap: () {
@@ -565,13 +589,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     },
-                    child: const Icon(
-                      Icons.bookmark_border,
-                      color: Color(0xFF8B4513),
-                      size: 24,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.bookmark_border,
+                        color: theme.colorScheme.primary,
+                        size: 20,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   // User Profile Picture
                   GestureDetector(
                     onTap: () {
@@ -587,7 +618,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 40,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withOpacity(0.2),
+                        ),
                       ),
                       child: ClipOval(
                         child: Image.network(
@@ -595,11 +628,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
                             return Container(
-                              color: Colors.grey[300],
-                              child: const Icon(
+                              color: theme.colorScheme.surface,
+                              child: Icon(
                                 Icons.person,
                                 size: 24,
-                                color: Colors.grey,
+                                color: theme.colorScheme.onSurface,
                               ),
                             );
                           },
@@ -613,7 +646,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Navigation Tabs
             Container(
-              color: Colors.white,
+              color: theme.appBarTheme.backgroundColor,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
@@ -630,11 +663,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 40,
                         decoration: BoxDecoration(
                           color: _showAllPosts
-                              ? const Color(0xFF8B4513)
+                              ? theme.colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFF8B4513),
+                            color: theme.colorScheme.primary,
                             width: 1,
                           ),
                         ),
@@ -643,8 +676,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             'All Posts',
                             style: TextStyle(
                               color: _showAllPosts
-                                  ? Colors.white
-                                  : const Color(0xFF8B4513),
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.primary,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
@@ -667,11 +700,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 40,
                         decoration: BoxDecoration(
                           color: !_showAllPosts
-                              ? const Color(0xFF8B4513)
+                              ? theme.colorScheme.primary
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFF8B4513),
+                            color: theme.colorScheme.primary,
                             width: 1,
                           ),
                         ),
@@ -680,8 +713,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             'My Posts',
                             style: TextStyle(
                               color: !_showAllPosts
-                                  ? Colors.white
-                                  : const Color(0xFF8B4513),
+                                  ? theme.colorScheme.onPrimary
+                                  : theme.colorScheme.primary,
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
                             ),
@@ -697,9 +730,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // Posts List
             Expanded(
               child: _isLoading
-                  ? const Center(
+                  ? Center(
                       child: CircularProgressIndicator(
-                        color: Color(0xFF8B4513),
+                        color: theme.colorScheme.primary,
                       ),
                     )
                   : _filteredPosts.isEmpty
@@ -710,17 +743,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           Icon(
                             _showAllPosts ? Icons.public : Icons.person,
                             size: 64,
-                            color: Colors.grey[400],
+                            color: theme.colorScheme.onBackground.withOpacity(
+                              0.4,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
                             _showAllPosts
                                 ? 'No public posts available'
                                 : 'No posts yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey[600],
-                              fontWeight: FontWeight.w500,
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              color: theme.colorScheme.onBackground.withOpacity(
+                                0.6,
+                              ),
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -731,9 +766,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               _showAllPosts
                                   ? 'Public posts will appear here'
                                   : 'Create your first post!',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onBackground
+                                    .withOpacity(0.5),
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -743,7 +778,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                   : RefreshIndicator(
                       onRefresh: _loadPosts,
-                      color: const Color(0xFF8B4513),
+                      color: theme.colorScheme.primary,
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
                         itemCount: _filteredPosts.length,
@@ -770,8 +805,9 @@ class _HomeScreenState extends State<HomeScreen> {
             await _loadPosts();
           }
         },
-        backgroundColor: const Color(0xFF8B4513),
-        child: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -779,6 +815,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPostCard(Post post) {
     final isLiked =
         _currentUserId != null && post.likedUsers.contains(_currentUserId);
+    final theme = Theme.of(context);
 
     return GestureDetector(
       onTap: () async {
@@ -794,11 +831,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardTheme.color,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: theme.colorScheme.onBackground.withOpacity(0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -816,11 +853,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Text(
                       post.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF424242),
-                      ),
+                      style: theme.textTheme.headlineMedium,
                     ),
                   ),
                   if (!post.isPublic)
@@ -831,19 +864,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.grey[200],
+                        color: theme.colorScheme.onBackground.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.lock, size: 12, color: Colors.grey[600]),
+                          Icon(
+                            Icons.lock,
+                            size: 12,
+                            color: theme.colorScheme.onBackground.withOpacity(
+                              0.6,
+                            ),
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Private',
                             style: TextStyle(
                               fontSize: 10,
-                              color: Colors.grey[600],
+                              color: theme.colorScheme.onBackground.withOpacity(
+                                0.6,
+                              ),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -857,11 +898,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Post Content Snippet
               Text(
                 post.description,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF424242),
-                  height: 1.4,
-                ),
+                style: theme.textTheme.bodyMedium,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -876,7 +913,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 32,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                      border: Border.all(
+                        color: theme.colorScheme.onBackground.withOpacity(0.2),
+                      ),
                     ),
                     child: ClipOval(
                       child: Image.network(
@@ -884,11 +923,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
-                            color: Colors.grey[300],
-                            child: const Icon(
+                            color: theme.colorScheme.surface,
+                            child: Icon(
                               Icons.person,
                               size: 20,
-                              color: Colors.grey,
+                              color: theme.colorScheme.onSurface,
                             ),
                           );
                         },
@@ -900,10 +939,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Text(
                       post.authorName,
-                      style: const TextStyle(
-                        fontSize: 14,
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF424242),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -913,8 +950,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   Container(
                     width: 4,
                     height: 4,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF424242),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onBackground,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -923,7 +960,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Flexible(
                     child: Text(
                       _formatTimestamp(post.timestamp),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onBackground.withOpacity(0.6),
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -942,7 +981,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked ? Colors.red : const Color(0xFF424242),
+                          color: isLiked
+                              ? Colors.red
+                              : theme.colorScheme.onBackground,
                           size: 20,
                         ),
                         const SizedBox(width: 4),
@@ -952,7 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 14,
                             color: isLiked
                                 ? Colors.red
-                                : const Color(0xFF424242),
+                                : theme.colorScheme.onBackground,
                             fontWeight: isLiked
                                 ? FontWeight.w600
                                 : FontWeight.normal,
@@ -968,17 +1009,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.chat_bubble_outline,
-                          color: Color(0xFF424242),
+                          color: theme.colorScheme.onBackground,
                           size: 20,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           post.comments.toString(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Color(0xFF424242),
+                            color: theme.colorScheme.onBackground,
                           ),
                         ),
                       ],
@@ -989,12 +1030,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Post bookmarked!')),
+                        SnackBar(
+                          content: const Text('Post bookmarked!'),
+                          backgroundColor: theme.colorScheme.primary,
+                        ),
                       );
                     },
-                    child: const Icon(
+                    child: Icon(
                       Icons.bookmark_border,
-                      color: Color(0xFF424242),
+                      color: theme.colorScheme.onBackground,
                       size: 20,
                     ),
                   ),
