@@ -16,6 +16,9 @@ class PostService {
     };
     posts.add(updatedPost);
     await prefs.setString('$_postsKey:$userId', jsonEncode(posts));
+    print(
+      'PostService: Saved post "${post['title']}" for user $userId. Total posts for user: ${posts.length}',
+    );
     statsNotifier.notifyStatsChanged(); // Notify UI
   }
 
@@ -44,12 +47,7 @@ class PostService {
       };
     } catch (e) {
       print('Error fetching user stats: $e');
-      return {
-        'posts': 0,
-        'likes': 0,
-        'views': 0,
-        'comments': 0,
-      };
+      return {'posts': 0, 'likes': 0, 'views': 0, 'comments': 0};
     }
   }
 
@@ -66,11 +64,10 @@ class PostService {
       if (post['id'] == postId) {
         final replies = List<String>.from(post['replies'] ?? []);
         final timestamp = DateTime.now().toIso8601String();
-        replies.add('reply_to_${commentIndex}_${username}: $reply ($timestamp)');
-        return {
-          ...post,
-          'replies': replies,
-        };
+        replies.add(
+          'reply_to_${commentIndex}_${username}: $reply ($timestamp)',
+        );
+        return {...post, 'replies': replies};
       }
       return post;
     }).toList();
@@ -141,15 +138,24 @@ class PostService {
         .map((key) => key.split(':').last)
         .toSet();
 
+    print('PostService: Found user IDs: $userIds');
+
     final allPosts = <Map<String, dynamic>>[];
     for (final uid in userIds) {
       final posts = await _getPosts(uid);
+      print('PostService: User $uid has ${posts.length} posts');
       if (userId == null) {
-        allPosts.addAll(posts.where((post) => post['visibility'] == 'Public'));
+        final publicPosts = posts
+            .where((post) => post['visibility'] == 'Public')
+            .toList();
+        print('PostService: User $uid has ${publicPosts.length} public posts');
+        allPosts.addAll(publicPosts);
       } else if (userId == uid) {
         allPosts.addAll(posts);
       }
     }
+
+    print('PostService: Returning ${allPosts.length} total posts');
     return allPosts;
   }
 }

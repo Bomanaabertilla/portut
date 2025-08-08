@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'comment_screen.dart';
+import 'home_screen.dart';
 
 class Comment {
   final String id;
@@ -20,7 +21,9 @@ class Comment {
 }
 
 class BlogPostScreen extends StatefulWidget {
-  const BlogPostScreen({super.key});
+  final Post? post; // Add post parameter to receive post data
+
+  const BlogPostScreen({super.key, this.post});
 
   @override
   State<BlogPostScreen> createState() => _BlogPostScreenState();
@@ -48,6 +51,18 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
       timestamp: '4h ago',
     ),
   ];
+
+  bool _isPublic = true; // Default privacy setting
+  final String _currentUserId = 'current_user';
+
+  @override
+  void initState() {
+    super.initState();
+    // Set initial privacy based on post data
+    if (widget.post != null) {
+      _isPublic = widget.post!.isPublic;
+    }
+  }
 
   @override
   void dispose() {
@@ -81,8 +96,51 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     );
   }
 
+  void _togglePrivacy() {
+    setState(() {
+      _isPublic = !_isPublic;
+    });
+
+    // Show feedback to user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isPublic
+              ? 'Post is now public and visible to everyone'
+              : 'Post is now private and only visible to you',
+        ),
+        backgroundColor: _isPublic ? Colors.green : Colors.orange,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _navigateToHome() {
+    // Return updated post data to home screen
+    if (widget.post != null) {
+      final updatedPost = Post(
+        id: widget.post!.id,
+        title: widget.post!.title,
+        description: widget.post!.description,
+        authorName: widget.post!.authorName,
+        authorAvatar: widget.post!.authorAvatar,
+        timestamp: widget.post!.timestamp,
+        likes: widget.post!.likes,
+        comments: widget.post!.comments,
+        isPublic: _isPublic,
+        authorId: widget.post!.authorId,
+      );
+      Navigator.pop(context, updatedPost);
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final post = widget.post;
+    final isCurrentUserPost = post?.authorId == _currentUserId;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5DC), // Light beige background
       body: SafeArea(
@@ -95,7 +153,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: _navigateToHome,
                     child: const Icon(
                       Icons.arrow_back,
                       color: Color(0xFF424242),
@@ -103,21 +161,143 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Complete Guide to React',
-                      style: TextStyle(
+                      post?.title ?? 'Complete Guide to React',
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF424242),
                       ),
                       textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 40), // Balance the back button
                 ],
               ),
             ),
+
+            // Privacy Toggle (only for current user's posts)
+            if (isCurrentUserPost) ...[
+              Container(
+                color: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Privacy:',
+                      style: TextStyle(
+                        color: Color(0xFF424242),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Toggle Switch
+                    Row(
+                      children: [
+                        Text(
+                          'Private',
+                          style: TextStyle(
+                            color: _isPublic
+                                ? Colors.grey
+                                : const Color(0xFF424242),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _togglePrivacy,
+                          child: Container(
+                            width: 40,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: _isPublic
+                                  ? const Color(0xFF8B4513)
+                                  : Colors.grey,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  left: _isPublic ? 22 : 2,
+                                  top: 2,
+                                  child: Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Public',
+                          style: TextStyle(
+                            color: _isPublic
+                                ? const Color(0xFF8B4513)
+                                : Colors.grey,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    // Privacy indicator
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isPublic ? Colors.blue[50] : Colors.orange[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isPublic
+                              ? Colors.blue[200]!
+                              : Colors.orange[200]!,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isPublic ? Icons.public : Icons.lock,
+                            size: 12,
+                            color: _isPublic
+                                ? Colors.blue[600]
+                                : Colors.orange[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isPublic ? 'Public' : 'Private',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _isPublic
+                                  ? Colors.blue[700]
+                                  : Colors.orange[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(height: 1, color: Colors.grey.withOpacity(0.2)),
+            ],
 
             // Article Content
             Expanded(
@@ -131,9 +311,10 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Complete Guide to React Hooks and State Management',
-                            style: TextStyle(
+                          Text(
+                            post?.title ??
+                                'Complete Guide to React Hooks and State Management',
+                            style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF424242),
@@ -157,7 +338,8 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                                 ),
                                 child: ClipOval(
                                   child: Image.network(
-                                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
+                                    post?.authorAvatar ??
+                                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Container(
@@ -176,18 +358,18 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                               // Author Details
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
+                                children: [
                                   Text(
-                                    'John Developer',
-                                    style: TextStyle(
+                                    post?.authorName ?? 'John Developer',
+                                    style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
                                       color: Color(0xFF424242),
                                     ),
                                   ),
                                   Text(
-                                    'March 15, 2024',
-                                    style: TextStyle(
+                                    post?.timestamp ?? 'March 15, 2024',
+                                    style: const TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey,
                                     ),
@@ -240,9 +422,10 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'React Hooks have revolutionized the way we write React components. They allow us to use state and other React features without writing class components.',
-                            style: TextStyle(
+                          Text(
+                            post?.description ??
+                                'React Hooks have revolutionized the way we write React components. They allow us to use state and other React features without writing class components.',
+                            style: const TextStyle(
                               fontSize: 16,
                               color: Color(0xFF424242),
                               height: 1.6,
@@ -439,6 +622,9 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                                     ),
                                     child: TextField(
                                       controller: _commentController,
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                      ),
                                       decoration: const InputDecoration(
                                         hintText: 'Add a comment...',
                                         border: InputBorder.none,

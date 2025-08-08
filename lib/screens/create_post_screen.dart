@@ -1,4 +1,51 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+
+class Post {
+  final String id;
+  final String title;
+  final String description;
+  final String authorName;
+  final String authorAvatar;
+  final String timestamp;
+  final int likes;
+  final int comments;
+  final bool isPublic;
+  final String authorId;
+  final List<String> likedUsers;
+  final List<String> commentsList;
+
+  Post({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.authorName,
+    required this.authorAvatar,
+    required this.timestamp,
+    required this.likes,
+    required this.comments,
+    required this.isPublic,
+    required this.authorId,
+    this.likedUsers = const [],
+    this.commentsList = const [],
+  });
+
+  // Convert Post to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'content': description,
+      'authorName': authorName,
+      'authorAvatar': authorAvatar,
+      'timestamp': timestamp,
+      'likes': likes,
+      'comments': commentsList,
+      'visibility': isPublic ? 'Public' : 'Private',
+      'likedUsers': likedUsers,
+    };
+  }
+}
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -8,12 +55,42 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
+  final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   List<String> _uploadedFiles = [];
   bool _isPublic = true; // Toggle for visibility
+  String? _currentUserId;
+  String _currentUserName = 'Current User';
+  
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await _authService.getCurrentUser();
+      if (mounted) {
+        setState(() {
+          _currentUserId = user?.username ?? 'current_user';
+          _currentUserName = user?.displayName ?? 'Current User';
+        });
+      }
+    } catch (e) {
+      print('Error loading current user: $e');
+      setState(() {
+        _currentUserId = 'current_user';
+        _currentUserName = 'Current User';
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
@@ -26,6 +103,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   void _publishPost() {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a title for your post'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     if (_contentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -36,14 +123,23 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       return;
     }
 
-    // Handle post publishing
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Post published successfully!'),
-        backgroundColor: Colors.green,
-      ),
+    // Create new post
+    final newPost = Post(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: _titleController.text.trim(),
+      description: _contentController.text.trim(),
+      authorName: _currentUserName,
+      authorAvatar:
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
+      timestamp: DateTime.now().toIso8601String(),
+      likes: 0,
+      comments: 0,
+      isPublic: _isPublic,
+      authorId: _currentUserId ?? 'current_user',
     );
-    Navigator.pop(context);
+
+    // Return the post to the previous screen
+    Navigator.pop(context, newPost);
   }
 
   @override
@@ -87,6 +183,44 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title Section
+                    const Text(
+                      'Title',
+                      style: TextStyle(
+                        color: Color(0xFF424242),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _titleController,
+                        style: const TextStyle(color: Colors.black),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your post title...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                        maxLines: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
                     // Content Section
                     const Text(
                       'Content',
@@ -255,6 +389,46 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           ],
                         ),
                       ],
+                    ),
+
+                    // Privacy Info
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _isPublic ? Colors.blue[50] : Colors.orange[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _isPublic
+                              ? Colors.blue[200]!
+                              : Colors.orange[200]!,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isPublic ? Icons.public : Icons.lock,
+                            color: _isPublic
+                                ? Colors.blue[600]
+                                : Colors.orange[600],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _isPublic
+                                  ? 'This post will be visible to everyone in All Posts'
+                                  : 'This post will only be visible to you in My Posts',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _isPublic
+                                    ? Colors.blue[700]
+                                    : Colors.orange[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
 
                     // Show uploaded files if any
