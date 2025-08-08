@@ -9,7 +9,9 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _nameController = TextEditingController(text: 'Sarah Johnson');
-  final _emailController = TextEditingController(text: 'sarah.johnson@email.com');
+  final _emailController = TextEditingController(
+    text: 'sarah.johnson@email.com',
+  );
   bool _isLoading = false;
 
   @override
@@ -58,7 +60,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       onTap: () => Navigator.pop(context),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Icon(Icons.arrow_back, color: Color(0xFF424242), size: 24),
+                        child: Icon(
+                          Icons.arrow_back,
+                          color: Color(0xFF424242),
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
@@ -75,10 +81,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
-            Container(
-              height: 1,
-              color: Colors.grey.withOpacity(0.15),
-            ),
+            Container(height: 1, color: Colors.grey.withOpacity(0.15)),
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
@@ -111,7 +114,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
                                     color: Colors.grey[300],
-                                    child: const Icon(Icons.person, size: 60, color: Colors.grey),
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 60,
+                                      color: Colors.grey,
+                                    ),
                                   );
                                 },
                               ),
@@ -126,9 +133,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               decoration: BoxDecoration(
                                 color: const Color(0xFF8B4513),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
-                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
                         ],
@@ -174,11 +188,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: TextField(
                           controller: _nameController,
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                          ),
                           decoration: const InputDecoration(
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                           ),
-                          style: const TextStyle(color: Colors.black, fontSize: 16),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -209,11 +229,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: TextField(
                           controller: _emailController,
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                          ),
                           decoration: const InputDecoration(
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                           ),
-                          style: const TextStyle(color: Colors.black, fontSize: 16),
                           keyboardType: TextInputType.emailAddress,
                         ),
                       ),
@@ -248,7 +274,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 )
                               : const Text(

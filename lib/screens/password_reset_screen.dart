@@ -94,6 +94,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ),
                 child: TextField(
                   controller: _usernameController,
+                  style: const TextStyle(color: Colors.black),
                   decoration: const InputDecoration(
                     hintText: 'Username',
                     border: InputBorder.none,
@@ -122,6 +123,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ),
                 child: TextField(
                   controller: _newPasswordController,
+                  style: const TextStyle(color: Colors.black),
                   decoration: InputDecoration(
                     hintText: 'Enter your new password',
                     border: InputBorder.none,
@@ -177,6 +179,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 ),
                 child: TextField(
                   controller: _confirmPasswordController,
+                  style: const TextStyle(color: Colors.black),
                   decoration: InputDecoration(
                     hintText: 'Confirm your new password',
                     border: InputBorder.none,
