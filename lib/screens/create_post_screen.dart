@@ -143,7 +143,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     print('Public: ${newPost.isPublic}');
     print('Current user ID: $_currentUserId');
 
-    // Return the post to the previous screen
+    // Return the post to the previous screen and navigate back
     Navigator.pop(context, newPost);
   }
 
@@ -204,7 +204,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -242,7 +242,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -287,13 +287,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.grey.withOpacity(0.3),
+                            color: Colors.grey.withValues(alpha: 0.3),
                             style: BorderStyle.solid,
                             width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -457,7 +457,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: Colors.grey.withOpacity(0.2),
+                                  color: Colors.grey.withValues(alpha: 0.2),
                                 ),
                               ),
                               child: Row(
@@ -511,7 +511,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF8B4513).withOpacity(0.3),
+                      color: const Color(0xFF8B4513).withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
