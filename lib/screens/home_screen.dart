@@ -309,13 +309,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Get filtered posts based on current view
   List<Post> get _filteredPosts {
+    List<Post> filtered;
+
     if (_showAllPosts) {
       // Show only public posts in All Posts
-      return _posts.where((post) => post.isPublic).toList();
+      filtered = _posts.where((post) => post.isPublic).toList();
+      print(
+        'All Posts tab: ${filtered.length} public posts out of ${_posts.length} total posts',
+      );
     } else {
       // Show all posts by current user in My Posts
-      return _posts.where((post) => post.authorId == _currentUserId).toList();
+      filtered = _posts
+          .where((post) => post.authorId == _currentUserId)
+          .toList();
+      print(
+        'My Posts tab: ${filtered.length} posts for user $_currentUserId out of ${_posts.length} total posts',
+      );
     }
+
+    return filtered;
   }
 
   // Add a new post to the list
@@ -327,15 +339,33 @@ class _HomeScreenState extends State<HomeScreen> {
         newPost.toMap(),
       );
 
-      // Update local list
+      // Update local list - add to the beginning
       setState(() {
         _posts.insert(0, newPost);
       });
+
+      print('New post added: "${newPost.title}" by ${newPost.authorName}');
+      print('Total posts now: ${_posts.length}');
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Post "${newPost.title}" created successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
       print('Error adding new post: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error saving post')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error saving post'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -465,6 +495,31 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // Debug method to check current state
+  void _debugCurrentState() {
+    print('=== DEBUG CURRENT STATE ===');
+    print('Current User ID: $_currentUserId');
+    print('Show All Posts: $_showAllPosts');
+    print('Total Posts in Memory: ${_posts.length}');
+    print('Filtered Posts: ${_filteredPosts.length}');
+
+    for (int i = 0; i < _posts.length; i++) {
+      final post = _posts[i];
+      print(
+        'Post $i: "${post.title}" by ${post.authorName} (${post.authorId}) - Public: ${post.isPublic}',
+      );
+    }
+
+    print('Filtered Posts:');
+    for (int i = 0; i < _filteredPosts.length; i++) {
+      final post = _filteredPosts[i];
+      print(
+        '  $i: "${post.title}" by ${post.authorName} (${post.authorId}) - Public: ${post.isPublic}',
+      );
+    }
+    print('=== END DEBUG ===');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -492,6 +547,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     onTap: _loadPosts,
                     onLongPress: _clearAndReinitializePosts,
+                    onDoubleTap: _debugCurrentState,
                     child: const Icon(
                       Icons.refresh,
                       color: Color(0xFF8B4513),
@@ -666,15 +722,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.grey[600],
                               fontWeight: FontWeight.w500,
                             ),
+                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            _showAllPosts
-                                ? 'Public posts will appear here'
-                                : 'Create your first post!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[500],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              _showAllPosts
+                                  ? 'Public posts will appear here'
+                                  : 'Create your first post!',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                           ),
                         ],
@@ -703,7 +764,10 @@ class _HomeScreenState extends State<HomeScreen> {
           );
           // Handle the result from create post screen
           if (result != null && result is Post) {
+            print('Received new post from create screen: ${result.title}');
             await _addNewPost(result);
+            // Force refresh to ensure posts are loaded correctly
+            await _loadPosts();
           }
         },
         backgroundColor: const Color(0xFF8B4513),
@@ -747,6 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               // Post Title and Privacy Indicator
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
@@ -760,6 +825,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   if (!post.isPublic)
                     Container(
+                      margin: const EdgeInsets.only(left: 8),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 4,
@@ -831,12 +897,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 8),
                   // Author Name
-                  Text(
-                    post.authorName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF424242),
+                  Expanded(
+                    child: Text(
+                      post.authorName,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF424242),
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -851,9 +920,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(width: 8),
                   // Timestamp
-                  Text(
-                    _formatTimestamp(post.timestamp),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  Flexible(
+                    child: Text(
+                      _formatTimestamp(post.timestamp),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -866,6 +938,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     onTap: () => _toggleLike(post),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
@@ -893,6 +966,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   GestureDetector(
                     onTap: () => _addComment(post),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
                           Icons.chat_bubble_outline,

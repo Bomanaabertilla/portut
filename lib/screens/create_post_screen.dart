@@ -61,7 +61,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool _isPublic = true; // Toggle for visibility
   String? _currentUserId;
   String _currentUserName = 'Current User';
-  
+
   final AuthService _authService = AuthService();
 
   @override
@@ -137,6 +137,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       isPublic: _isPublic,
       authorId: _currentUserId ?? 'current_user',
     );
+
+    print('Creating post: "${newPost.title}"');
+    print('Author: ${newPost.authorName} (ID: ${newPost.authorId})');
+    print('Public: ${newPost.isPublic}');
+    print('Current user ID: $_currentUserId');
 
     // Return the post to the previous screen
     Navigator.pop(context, newPost);
