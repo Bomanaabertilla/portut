@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
+import 'screens/signup_screen.dart';
 import 'providers/theme_provider.dart';
 
 void main() {
@@ -23,6 +24,10 @@ class MyApp extends StatelessWidget {
           title: 'PorTuT',
           theme: themeProvider.currentTheme,
           home: const LoginScreen(),
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/signup': (context) => const SignupScreen(),
+          },
           debugShowCheckedModeBanner: false,
         );
       },

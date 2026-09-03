@@ -112,8 +112,12 @@ class AuthService {
     return users.any((user) => user.username == username);
   }
 
-  // Validate password requirements
+  // Validate password requirements (at least 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special char)
   bool validatePassword(String password) {
-    return password.length >= 6;
+    return password.length >= 8 &&
+        RegExp(r'[A-Z]').hasMatch(password) &&
+        RegExp(r'[a-z]').hasMatch(password) &&
+        RegExp(r'[0-9]').hasMatch(password) &&
+        RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password);
   }
 }

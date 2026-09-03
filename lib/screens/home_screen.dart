@@ -9,6 +9,8 @@ import 'create_post_screen.dart';
 import 'profile_screen.dart';
 import 'blog_post_screen.dart';
 import 'bookmarks_screen.dart';
+import 'signup_screen.dart';
+import 'login_screen.dart';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../providers/theme_provider.dart';
@@ -1618,7 +1620,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/signup');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SignupScreen(),
+                          ),
+                        );
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
@@ -1643,7 +1650,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pop(context);
-                        Navigator.pushNamed(context, '/login');
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
+                        );
                       },
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
