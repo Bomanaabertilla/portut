@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import '../widgets/initials_avatar.dart';
 
 class Comment {
   final String id;
@@ -30,26 +31,7 @@ class CommentScreen extends StatefulWidget {
 
 class _CommentScreenState extends State<CommentScreen> {
   final _commentController = TextEditingController();
-  final List<Comment> _comments = [
-    Comment(
-      id: '1',
-      userName: 'Sarah Chen',
-      userAvatar:
-          'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face',
-      comment:
-          'Great explanation! The useState examples really helped me understand the concept better.',
-      timestamp: '2h ago',
-    ),
-    Comment(
-      id: '2',
-      userName: 'Mike Rodriguez',
-      userAvatar:
-          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
-      comment:
-          'Could you cover useContext in your next post? I\'m struggling with prop drilling.',
-      timestamp: '4h ago',
-    ),
-  ];
+  final List<Comment> _comments = [];
 
   @override
   void dispose() {
@@ -250,58 +232,64 @@ class _CommentScreenState extends State<CommentScreen> {
 
             // Comments List
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _comments.length,
-                itemBuilder: (context, index) {
-                  final comment = _comments[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // User info row
-                        Row(
-                          children: [
-                            // Profile picture
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.grey.withOpacity(0.2),
-                                ),
-                              ),
-                              child: ClipOval(
-                                child: Image.network(
-                                  comment.userAvatar,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.person,
-                                        size: 24,
-                                        color: Colors.grey,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
+              child: _comments.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'No comments yet',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF424242),
                             ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Be the first to comment!',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _comments.length,
+                      itemBuilder: (context, index) {
+                        final comment = _comments[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // User info row
+                              Row(
+                                children: [
+                                  // Profile picture
+                                  InitialsAvatar(
+                                    name: comment.userName,
+                                    size: 40,
+                                    fontSize: 14,
+                                  ),
                             const SizedBox(width: 12),
                             // Username and timestamp
                             Expanded(
@@ -405,38 +393,10 @@ class _CommentScreenState extends State<CommentScreen> {
                                     children: [
                                       Row(
                                         children: [
-                                          Container(
-                                            width: 24,
-                                            height: 24,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.grey.withOpacity(
-                                                  0.2,
-                                                ),
-                                              ),
-                                            ),
-                                            child: ClipOval(
-                                              child: Image.network(
-                                                reply.userAvatar,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      return Container(
-                                                        color: Colors.grey[300],
-                                                        child: const Icon(
-                                                          Icons.person,
-                                                          size: 12,
-                                                          color: Colors.grey,
-                                                        ),
-                                                      );
-                                                    },
-                                              ),
-                                            ),
+                                          InitialsAvatar(
+                                            name: reply.userName,
+                                            size: 24,
+                                            fontSize: 10,
                                           ),
                                           const SizedBox(width: 8),
                                           Text(
@@ -494,30 +454,11 @@ class _CommentScreenState extends State<CommentScreen> {
               ),
               child: Row(
                 children: [
-                  // Current user profile picture
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                    ),
-                    child: ClipOval(
-                      child: Image.network(
-                        'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: const Icon(
-                              Icons.person,
-                              size: 24,
-                              color: Colors.grey,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                  // Current user initials avatar
+                  const InitialsAvatar(
+                    name: 'You',
+                    size: 40,
+                    fontSize: 14,
                   ),
                   const SizedBox(width: 12),
                   // Comment input field

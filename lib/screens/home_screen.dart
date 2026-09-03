@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'create_post_screen.dart';
@@ -7,104 +8,10 @@ import 'bookmarks_screen.dart';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/initials_avatar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class Post {
-  final String id;
-  final String title;
-  final String description;
-  final String authorName;
-  final String authorAvatar;
-  final String timestamp;
-  final int likes;
-  final int comments;
-  final bool isPublic;
-  final String authorId;
-  final List<String> likedUsers;
-  final List<String> commentsList;
-
-  Post({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.authorName,
-    required this.authorAvatar,
-    required this.timestamp,
-    required this.likes,
-    required this.comments,
-    required this.isPublic,
-    required this.authorId,
-    this.likedUsers = const [],
-    this.commentsList = const [],
-  });
-
-  // Factory constructor to create Post from Map
-  factory Post.fromMap(Map<String, dynamic> map, String authorId) {
-    return Post(
-      id: map['id'] ?? '',
-      title: map['title'] ?? '',
-      description: map['content'] ?? map['description'] ?? '',
-      authorName: map['authorName'] ?? map['author'] ?? 'Unknown',
-      authorAvatar:
-          map['authorAvatar'] ??
-          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-      timestamp: map['timestamp'] ?? DateTime.now().toIso8601String(),
-      likes: (map['likes'] as num?)?.toInt() ?? 0,
-      comments: (map['comments'] as List?)?.length ?? 0,
-      isPublic: map['visibility'] == 'Public' || map['isPublic'] == true,
-      authorId: authorId,
-      likedUsers: List<String>.from(map['likedUsers'] ?? []),
-      commentsList: List<String>.from(map['comments'] ?? []),
-    );
-  }
-
-  // Convert Post to Map
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'content': description,
-      'authorName': authorName,
-      'authorAvatar': authorAvatar,
-      'timestamp': timestamp,
-      'likes': likes,
-      'comments': commentsList,
-      'visibility': isPublic ? 'Public' : 'Private',
-      'likedUsers': likedUsers,
-    };
-  }
-
-  // Create a copy with updated properties
-  Post copyWith({
-    String? id,
-    String? title,
-    String? description,
-    String? authorName,
-    String? authorAvatar,
-    String? timestamp,
-    int? likes,
-    int? comments,
-    bool? isPublic,
-    String? authorId,
-    List<String>? likedUsers,
-    List<String>? commentsList,
-  }) {
-    return Post(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      authorName: authorName ?? this.authorName,
-      authorAvatar: authorAvatar ?? this.authorAvatar,
-      timestamp: timestamp ?? this.timestamp,
-      likes: likes ?? this.likes,
-      comments: comments ?? this.comments,
-      isPublic: isPublic ?? this.isPublic,
-      authorId: authorId ?? this.authorId,
-      likedUsers: likedUsers ?? this.likedUsers,
-      commentsList: commentsList ?? this.commentsList,
-    );
-  }
-}
+import '../models/post.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -118,6 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _currentUserId;
   List<Post> _posts = [];
   bool _isLoading = true;
+  Set<String> _bookmarkedPostIds = {};
 
   final PostService _postService = PostService();
   final AuthService _authService = AuthService();
@@ -125,7 +33,45 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCurrentUser();
+    _initScreen();
+  }
+
+  Future<void> _initScreen() async {
+    await _purgeSamplePosts();
+    await _loadCurrentUser();
+    await _loadBookmarks();
+  }
+
+  Future<void> _purgeSamplePosts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Purge known dummy user posts
+      await prefs.remove('user_posts:mike_chen');
+      await prefs.remove('user_posts:emma_davis');
+
+      // Purge dummy post IDs ('1', '2', '3') from any user's post list
+      final keys = prefs.getKeys().where((k) => k.startsWith('user_posts:')).toList();
+      for (final key in keys) {
+        final jsonStr = prefs.getString(key);
+        if (jsonStr != null) {
+          final List<dynamic> list = jsonDecode(jsonStr);
+          final filtered = list.where((p) {
+            final id = p['id']?.toString();
+            final author = p['authorName']?.toString();
+            return id != '1' &&
+                id != '2' &&
+                id != '3' &&
+                author != 'Mike Chen' &&
+                author != 'Emma Davis';
+          }).toList();
+          if (filtered.length != list.length) {
+            await prefs.setString(key, jsonEncode(filtered));
+          }
+        }
+      }
+    } catch (e) {
+      print('Error purging sample posts: $e');
+    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -135,16 +81,66 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _currentUserId = user?.username ?? 'current_user';
         });
-        print('Current user ID set to: $_currentUserId');
         await _loadPosts();
+        await _loadBookmarks();
       }
     } catch (e) {
       print('Error loading current user: $e');
+      if (mounted) {
+        setState(() {
+          _currentUserId = 'current_user';
+        });
+        await _loadPosts();
+        await _loadBookmarks();
+      }
+    }
+  }
+
+  Future<void> _loadBookmarks() async {
+    if (_currentUserId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('bookmarks_$_currentUserId') ?? [];
+      if (mounted) {
+        setState(() {
+          _bookmarkedPostIds = saved.toSet();
+        });
+      }
+    } catch (e) {
+      print('Error loading bookmarks: $e');
+    }
+  }
+
+  Future<void> _toggleBookmark(Post post) async {
+    if (_currentUserId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isBookmarked = _bookmarkedPostIds.contains(post.id);
       setState(() {
-        _currentUserId = 'current_user';
+        if (isBookmarked) {
+          _bookmarkedPostIds.remove(post.id);
+        } else {
+          _bookmarkedPostIds.add(post.id);
+        }
       });
-      print('Current user ID set to fallback: $_currentUserId');
-      await _loadPosts();
+      await prefs.setStringList(
+        'bookmarks_$_currentUserId',
+        _bookmarkedPostIds.toList(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isBookmarked ? 'Bookmark removed' : 'Post bookmarked!',
+            ),
+            backgroundColor: const Color(0xFF8B4513),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error toggling bookmark: $e');
     }
   }
 
@@ -159,35 +155,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_showAllPosts) {
         // Load all public posts
         postsData = await _postService.getAllPosts();
-        print('Loading all posts. Found ${postsData.length} posts');
       } else {
         // Load current user's posts (both public and private)
         if (_currentUserId != null) {
           postsData = await _postService.getPosts(_currentUserId!);
-          print(
-            'Loading user posts for $_currentUserId. Found ${postsData.length} posts',
-          );
         } else {
           postsData = [];
-          print('No current user ID available');
-        }
-      }
-
-      // If no posts exist, initialize with sample posts
-      if (postsData.isEmpty) {
-        print('No posts found, initializing sample posts...');
-        await _initializeSamplePosts();
-        // Reload posts after initialization
-        if (_showAllPosts) {
-          postsData = await _postService.getAllPosts();
-          print('After initialization - All posts: ${postsData.length}');
-        } else {
-          if (_currentUserId != null) {
-            postsData = await _postService.getPosts(_currentUserId!);
-            print('After initialization - User posts: ${postsData.length}');
-          } else {
-            postsData = [];
-          }
         }
       }
 
@@ -210,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
           _posts = posts;
           _isLoading = false;
         });
-        print('Final posts count: ${_posts.length}');
       }
     } catch (e) {
       print('Error loading posts: $e');
@@ -222,78 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Initialize sample posts if none exist
-  Future<void> _initializeSamplePosts() async {
-    final currentUserId = _currentUserId ?? 'current_user';
-
-    final samplePosts = [
-      {
-        'id': '1',
-        'title': 'Building Responsive Layouts with Tailwind CSS',
-        'content':
-            'Discover how to create beautiful, responsive designs using Tailwind CSS utility classes. This comprehensive guide covers everything from basic setup to advanced techniques for creating modern web applications.',
-        'authorName': 'Mike Chen',
-        'authorAvatar':
-            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
-        'timestamp': DateTime.now()
-            .subtract(const Duration(days: 1))
-            .toIso8601String(),
-        'likes': 18,
-        'comments': [],
-        'visibility': 'Public',
-        'likedUsers': [],
-        'authorId': 'mike_chen',
-      },
-      {
-        'id': '2',
-        'title': 'JavaScript ES6 Features You Should Know',
-        'content':
-            'Explore the most useful ES6 features that will make your JavaScript code more modern and efficient. From arrow functions to destructuring, learn how to write cleaner and more maintainable code.',
-        'authorName': 'Emma Davis',
-        'authorAvatar':
-            'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face',
-        'timestamp': DateTime.now()
-            .subtract(const Duration(days: 2))
-            .toIso8601String(),
-        'likes': 31,
-        'comments': [],
-        'visibility': 'Public',
-        'likedUsers': [],
-        'authorId': 'emma_davis',
-      },
-      {
-        'id': '3',
-        'title': 'My Private Thoughts on Flutter',
-        'content':
-            'This is a private post that should only be visible to me in My Posts section. Here I share my personal thoughts about Flutter development and my learning journey.',
-        'authorName': 'Current User',
-        'authorAvatar':
-            'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-        'timestamp': DateTime.now()
-            .subtract(const Duration(hours: 3))
-            .toIso8601String(),
-        'likes': 0,
-        'comments': [],
-        'visibility': 'Private',
-        'likedUsers': [],
-        'authorId': currentUserId,
-      },
-    ];
-
-    // Save sample posts to their respective authors
-    for (final post in samplePosts) {
-      final authorId = post['authorId'] as String;
-      await _postService.savePost(authorId, post);
-    }
-
-    print(
-      'Sample posts initialized for authors: ${samplePosts.map((p) => p['authorId']).toList()}',
-    );
-    print('Current user ID: $currentUserId');
-  }
-
-  // Clear all posts and reinitialize (for testing)
-  Future<void> _clearAndReinitializePosts() async {
+  // Clear all posts (for testing)
+  Future<void> _clearAllPosts() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys();
     final postKeys = keys
@@ -303,9 +205,12 @@ class _HomeScreenState extends State<HomeScreen> {
     for (final key in postKeys) {
       await prefs.remove(key);
     }
+    if (_currentUserId != null) {
+      await prefs.remove('bookmarks_$_currentUserId');
+      _bookmarkedPostIds.clear();
+    }
 
-    print('Cleared all posts. Reinitializing...');
-    await _initializeSamplePosts();
+    print('Cleared all posts.');
     await _loadPosts();
   }
 
@@ -337,9 +242,16 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Save to service
       await _postService.savePost(
-        _currentUserId ?? 'current_user',
+        _currentUserId ?? newPost.authorId,
         newPost.toMap(),
       );
+
+      if (mounted) {
+        setState(() {
+          _posts.removeWhere((p) => p.id == newPost.id);
+          _posts.insert(0, newPost);
+        });
+      }
 
       print(
         'New post saved to service: "${newPost.title}" by ${newPost.authorName}',
@@ -559,7 +471,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Refresh Button
                   GestureDetector(
                     onTap: _loadPosts,
-                    onLongPress: _clearAndReinitializePosts,
+                    onLongPress: _clearAllPosts,
                     onDoubleTap: _debugCurrentState,
                     child: Container(
                       padding: const EdgeInsets.all(8),
@@ -577,13 +489,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 12),
                   // Bookmark Icon
                   GestureDetector(
-                    onTap: () {
-                      Navigator.push(
+                    onTap: () async {
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const BookmarksScreen(),
                         ),
                       );
+                      _loadBookmarks();
                     },
                     child: Container(
                       padding: const EdgeInsets.all(8),
@@ -609,31 +522,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.2,
-                          ),
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              color: theme.colorScheme.surface,
-                              child: Icon(
-                                Icons.person,
-                                size: 24,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            );
-                          },
+                    child: InitialsAvatar(
+                      name: _currentUserId ?? 'User',
+                      size: 40,
+                      fontSize: 16,
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(
+                          alpha: 0.2,
                         ),
                       ),
                     ),
@@ -798,11 +693,11 @@ class _HomeScreenState extends State<HomeScreen> {
           // Handle the result from create post screen
           if (result != null && result is Post) {
             print('Received new post from create screen: ${result.title}');
-            await _addNewPost(result);
-            // Switch to "My Posts" to show the new post at the top
+            // Switch to "All Posts" to show the new post on the All posts screen
             setState(() {
-              _showAllPosts = false;
+              _showAllPosts = true;
             });
+            await _addNewPost(result);
             // Force refresh to ensure posts are loaded correctly
             await _loadPosts();
           }
@@ -911,34 +806,11 @@ class _HomeScreenState extends State<HomeScreen> {
               // Author Information
               Row(
                 children: [
-                  // Author Profile Picture
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: theme.colorScheme.onBackground.withValues(
-                          alpha: 0.2,
-                        ),
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: Image.network(
-                        post.authorAvatar,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: theme.colorScheme.surface,
-                            child: Icon(
-                              Icons.person,
-                              size: 20,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+                  // Author Initials Avatar
+                  InitialsAvatar(
+                    name: post.authorName,
+                    size: 32,
+                    fontSize: 12,
                   ),
                   const SizedBox(width: 8),
                   // Author Name
@@ -1036,17 +908,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Spacer(),
                   // Bookmark
                   GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Post bookmarked!'),
-                          backgroundColor: theme.colorScheme.primary,
-                        ),
-                      );
-                    },
+                    onTap: () => _toggleBookmark(post),
                     child: Icon(
-                      Icons.bookmark_border,
-                      color: theme.colorScheme.onBackground,
+                      _bookmarkedPostIds.contains(post.id)
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                      color: _bookmarkedPostIds.contains(post.id)
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onBackground,
                       size: 20,
                     ),
                   ),

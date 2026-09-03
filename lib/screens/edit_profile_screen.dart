@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import '../widgets/initials_avatar.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -8,11 +12,27 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  final _nameController = TextEditingController(text: 'Sarah Johnson');
-  final _emailController = TextEditingController(
-    text: 'sarah.johnson@email.com',
-  );
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   bool _isLoading = false;
+
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = await _authService.getCurrentUser();
+    if (user != null && mounted) {
+      setState(() {
+        _nameController.text = user.displayName;
+        _emailController.text = user.username;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -25,18 +45,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() {
       _isLoading = true;
     });
-    await Future.delayed(const Duration(seconds: 1));
-    setState(() {
-      _isLoading = false;
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context);
+
+    try {
+      final user = await _authService.getCurrentUser();
+      if (user != null) {
+        final updated = user.copyWith(
+          displayName: _nameController.text.trim(),
+        );
+
+        final prefs = await SharedPreferences.getInstance();
+        final users = await _authService.getUsers();
+        final idx = users.indexWhere((u) => u.username == user.username);
+        if (idx != -1) {
+          users[idx] = updated;
+          await prefs.setStringList(
+            'users',
+            users.map((u) => jsonEncode(u.toMap())).toList(),
+          );
+        }
+        await prefs.setString('current_user', jsonEncode(updated.toMap()));
+      }
+    } catch (e) {
+      print('Error saving user profile: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -81,7 +124,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
-            Container(height: 1, color: Colors.grey.withOpacity(0.15)),
+            Container(
+              height: 1,
+              color: Colors.grey.withValues(alpha: 0.15),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
@@ -89,75 +135,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 32),
-                      // Profile Picture
-                      Stack(
-                        alignment: Alignment.bottomRight,
-                        children: [
-                          Container(
-                            width: 120,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
+                      // Profile Initials Avatar
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
                             ),
-                            child: ClipOval(
-                              child: Image.network(
-                                'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey[300],
-                                    child: const Icon(
-                                      Icons.person,
-                                      size: 60,
-                                      color: Colors.grey,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 8,
-                            right: 8,
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF8B4513),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      GestureDetector(
-                        onTap: () {},
-                        child: const Text(
-                          'Change Profile Picture',
-                          style: TextStyle(
-                            color: Color(0xFF8B4513),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
+                          ],
+                        ),
+                        child: InitialsAvatar(
+                          name: _nameController.text.isNotEmpty
+                              ? _nameController.text
+                              : 'User',
+                          size: 120,
+                          fontSize: 44,
+                          border: Border.all(color: Colors.white, width: 4),
                         ),
                       ),
                       const SizedBox(height: 40),
@@ -165,7 +161,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Name',
+                          'Display Name',
                           style: TextStyle(
                             color: Color(0xFF8B4513),
                             fontWeight: FontWeight.w600,
@@ -188,6 +184,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: TextField(
                           controller: _nameController,
+                          onChanged: (_) => setState(() {}),
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 16,
@@ -202,11 +199,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Email Field
+                      // Email Field (Read Only)
                       const Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          'Email',
+                          'Username / Account',
                           style: TextStyle(
                             color: Color(0xFF8B4513),
                             fontWeight: FontWeight.w600,
@@ -229,8 +226,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         child: TextField(
                           controller: _emailController,
-                          style: const TextStyle(
-                            color: Colors.black,
+                          readOnly: true,
+                          style: TextStyle(
+                            color: Colors.grey[700],
                             fontSize: 16,
                           ),
                           decoration: const InputDecoration(
@@ -240,7 +238,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               vertical: 16,
                             ),
                           ),
-                          keyboardType: TextInputType.emailAddress,
                         ),
                       ),
                       const SizedBox(height: 40),

@@ -1,21 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'blog_post_screen.dart';
-
-class BookmarkedPost {
-  final String id;
-  final String title;
-  final String author;
-  final String date;
-  bool isBookmarked;
-
-  BookmarkedPost({
-    required this.id,
-    required this.title,
-    required this.author,
-    required this.date,
-    this.isBookmarked = true,
-  });
-}
+import '../models/post.dart';
+import '../services/auth_service.dart';
+import '../services/post_service.dart';
+import '../widgets/initials_avatar.dart';
 
 class BookmarksScreen extends StatefulWidget {
   const BookmarksScreen({super.key});
@@ -25,41 +14,114 @@ class BookmarksScreen extends StatefulWidget {
 }
 
 class _BookmarksScreenState extends State<BookmarksScreen> {
-  List<BookmarkedPost> _bookmarkedPosts = [
-    BookmarkedPost(
-      id: '1',
-      title: 'The Art of Modern Web Design',
-      author: 'Sarah Johnson',
-      date: 'Dec 15, 2024',
-    ),
-    BookmarkedPost(
-      id: '2',
-      title: 'CSS Grid vs Flexbox: A Complete Guide',
-      author: 'Mike Chen',
-      date: 'Dec 12, 2024',
-    ),
-    BookmarkedPost(
-      id: '3',
-      title: 'JavaScript Async/Await Best Practices',
-      author: 'Alex Rivera',
-      date: 'Dec 10, 2024',
-    ),
-  ];
+  List<Post> _bookmarkedPosts = [];
+  bool _isLoading = true;
+  String? _currentUserId;
 
-  void _removeBookmark(String postId) {
-    setState(() {
-      _bookmarkedPosts.removeWhere((post) => post.id == postId);
-    });
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Bookmark removed')));
+  final PostService _postService = PostService();
+  final AuthService _authService = AuthService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBookmarks();
   }
 
-  void _viewPost(BookmarkedPost post) {
+  Future<void> _loadBookmarks() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      final user = await _authService.getCurrentUser();
+      final userId = user?.username ?? 'current_user';
+      _currentUserId = userId;
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedIds = prefs.getStringList('bookmarks_$userId') ?? [];
+
+      if (savedIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _bookmarkedPosts = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final allPostsData = await _postService.getAllPosts();
+      final List<Post> loaded = [];
+      for (final pData in allPostsData) {
+        final id = pData['id']?.toString();
+        if (savedIds.contains(id)) {
+          final authorId = pData['authorId'] ?? 'unknown';
+          loaded.add(Post.fromMap(pData, authorId));
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _bookmarkedPosts = loaded;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading bookmarks: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeBookmark(String postId) async {
+    if (_currentUserId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIds = prefs.getStringList('bookmarks_$_currentUserId') ?? [];
+      savedIds.remove(postId);
+      await prefs.setStringList('bookmarks_$_currentUserId', savedIds);
+
+      setState(() {
+        _bookmarkedPosts.removeWhere((p) => p.id == postId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bookmark removed'),
+            backgroundColor: Color(0xFF8B4513),
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error removing bookmark: $e');
+    }
+  }
+
+  void _viewPost(Post post) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const BlogPostScreen()),
+      MaterialPageRoute(builder: (context) => BlogPostScreen(post: post)),
     );
+  }
+
+  String _formatTimestamp(String timestamp) {
+    try {
+      final dateTime = DateTime.parse(timestamp);
+      final now = DateTime.now();
+      final diff = now.difference(dateTime);
+
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+      if (diff.inDays < 1) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      return '${dateTime.month}/${dateTime.day}/${dateTime.year}';
+    } catch (e) {
+      return timestamp;
+    }
   }
 
   @override
@@ -98,41 +160,50 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
 
             // Bookmarked Posts List
             Expanded(
-              child: _bookmarkedPosts.isEmpty
+              child: _isLoading
                   ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.bookmark_border,
-                            size: 64,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            'No bookmarks yet',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Bookmark posts to read them later',
-                            style: TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                        ],
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF8B4513),
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _bookmarkedPosts.length,
-                      itemBuilder: (context, index) {
-                        final post = _bookmarkedPosts[index];
-                        return _buildBookmarkCard(post);
-                      },
-                    ),
+                  : _bookmarkedPosts.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.bookmark_border,
+                                size: 64,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'No bookmarks yet',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Bookmark posts to read them later',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _bookmarkedPosts.length,
+                          itemBuilder: (context, index) {
+                            final post = _bookmarkedPosts[index];
+                            return _buildBookmarkCard(post);
+                          },
+                        ),
             ),
           ],
         ),
@@ -140,7 +211,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
     );
   }
 
-  Widget _buildBookmarkCard(BookmarkedPost post) {
+  Widget _buildBookmarkCard(Post post) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -176,17 +247,31 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                 ),
                 const SizedBox(width: 12),
                 // Bookmark icon
-                Icon(Icons.bookmark, color: const Color(0xFF8B4513), size: 20),
+                const Icon(
+                  Icons.bookmark,
+                  color: Color(0xFF8B4513),
+                  size: 20,
+                ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
 
-            // Author and date
+            // Author and date with InitialsAvatar
             Row(
               children: [
+                InitialsAvatar(
+                  name: post.authorName,
+                  size: 24,
+                  fontSize: 10,
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  'By ${post.author}',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  post.authorName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 // Dot separator
@@ -200,7 +285,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  post.date,
+                  _formatTimestamp(post.timestamp),
                   style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],

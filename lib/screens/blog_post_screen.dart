@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import '../models/post.dart';
+import '../services/auth_service.dart';
+import '../services/post_service.dart';
+import '../widgets/initials_avatar.dart';
 
 class Comment {
   final String id;
@@ -30,37 +33,60 @@ class BlogPostScreen extends StatefulWidget {
 
 class _BlogPostScreenState extends State<BlogPostScreen> {
   final _commentController = TextEditingController();
-  final List<Comment> _comments = [
-    Comment(
-      id: '1',
-      userName: 'Sarah Chen',
-      userAvatar:
-          'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=50&h=50&fit=crop&crop=face',
-      comment:
-          'Great explanation! The useState examples really helped me understand the concept better.',
-      timestamp: '2h ago',
-    ),
-    Comment(
-      id: '2',
-      userName: 'Mike Rodriguez',
-      userAvatar:
-          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
-      comment:
-          'Could you cover useContext in your next post? I\'m struggling with prop drilling.',
-      timestamp: '4h ago',
-    ),
-  ];
+  final List<Comment> _comments = [];
 
   bool _isPublic = true; // Default privacy setting
-  final String _currentUserId = 'current_user';
+  String _currentUserName = 'You';
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    // Set initial privacy based on post data
     if (widget.post != null) {
       _isPublic = widget.post!.isPublic;
+      for (final raw in widget.post!.commentsList) {
+        final colonIndex = raw.indexOf(': ');
+        if (colonIndex != -1) {
+          final author = raw.substring(0, colonIndex);
+          final rest = raw.substring(colonIndex + 2);
+          final lastParen = rest.lastIndexOf(' (');
+          final commentText =
+              lastParen != -1 ? rest.substring(0, lastParen) : rest;
+          _comments.add(
+            Comment(
+              id: raw.hashCode.toString(),
+              userName: author,
+              userAvatar: '',
+              comment: commentText,
+              timestamp: 'Recently',
+            ),
+          );
+        } else {
+          _comments.add(
+            Comment(
+              id: raw.hashCode.toString(),
+              userName: 'User',
+              userAvatar: '',
+              comment: raw,
+              timestamp: '',
+            ),
+          );
+        }
+      }
     }
+    _loadCurrentUser();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    try {
+      final user = await AuthService().getCurrentUser();
+      if (user != null && mounted) {
+        setState(() {
+          _currentUserId = user.username;
+          _currentUserName = user.displayName.isNotEmpty ? user.displayName : user.username;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -69,22 +95,32 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
     super.dispose();
   }
 
-  void _addComment() {
-    if (_commentController.text.trim().isNotEmpty) {
-      setState(() {
-        _comments.insert(
-          0,
-          Comment(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            userName: 'Current User',
-            userAvatar:
-                'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-            comment: _commentController.text.trim(),
-            timestamp: 'Just now',
-          ),
-        );
-      });
-      _commentController.clear();
+  Future<void> _addComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty) return;
+
+    final newComment = Comment(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      userName: _currentUserName,
+      userAvatar: '',
+      comment: text,
+      timestamp: 'Just now',
+    );
+
+    setState(() {
+      _comments.insert(0, newComment);
+    });
+    _commentController.clear();
+
+    if (widget.post != null) {
+      final timestamp = DateTime.now().toIso8601String();
+      final updatedCommentsList = List<String>.from(widget.post!.commentsList);
+      updatedCommentsList.add('$_currentUserName: $text ($timestamp)');
+      await PostService().updatePostStats(
+        widget.post!.authorId,
+        widget.post!.id,
+        comments: updatedCommentsList,
+      );
     }
   }
 
@@ -138,7 +174,8 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
-    final isCurrentUserPost = post?.authorId == _currentUserId;
+    final isCurrentUserPost =
+        post != null && _currentUserId != null && post.authorId == _currentUserId;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5DC), // Light beige background
@@ -326,32 +363,10 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                           Row(
                             children: [
                               // Author Profile Picture
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.grey.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: ClipOval(
-                                  child: Image.network(
-                                    post?.authorAvatar ??
-                                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop&crop=face',
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.grey[300],
-                                        child: const Icon(
-                                          Icons.person,
-                                          size: 24,
-                                          color: Colors.grey,
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
+                              InitialsAvatar(
+                                name: post?.authorName ?? 'User',
+                                size: 48,
+                                fontSize: 18,
                               ),
                               const SizedBox(width: 12),
                               // Author Details
@@ -453,6 +468,16 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                           const SizedBox(height: 16),
 
                           // Comments List
+                          if (_comments.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(
+                                child: Text(
+                                  'No comments yet. Be the first to comment!',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ),
+                            ),
                           ...(_comments
                               .map(
                                 (comment) => Container(
@@ -479,38 +504,10 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                                       Row(
                                         children: [
                                           // Profile picture
-                                          Container(
-                                            width: 40,
-                                            height: 40,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: Colors.grey.withValues(
-                                                  alpha: 0.2,
-                                                ),
-                                              ),
-                                            ),
-                                            child: ClipOval(
-                                              child: Image.network(
-                                                comment.userAvatar,
-                                                fit: BoxFit.cover,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) {
-                                                      return Container(
-                                                        color: Colors.grey[300],
-                                                        child: const Icon(
-                                                          Icons.person,
-                                                          size: 24,
-                                                          color: Colors.grey,
-                                                        ),
-                                                      );
-                                                    },
-                                              ),
-                                            ),
+                                          InitialsAvatar(
+                                            name: comment.userName,
+                                            size: 40,
+                                            fontSize: 14,
                                           ),
                                           const SizedBox(width: 12),
                                           // Username and timestamp
@@ -586,32 +583,10 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                             child: Row(
                               children: [
                                 // Current user profile picture
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.grey.withValues(alpha: 0.2),
-                                    ),
-                                  ),
-                                  child: ClipOval(
-                                    child: Image.network(
-                                      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
-                                      fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) {
-                                            return Container(
-                                              color: Colors.grey[300],
-                                              child: const Icon(
-                                                Icons.person,
-                                                size: 24,
-                                                color: Colors.grey,
-                                              ),
-                                            );
-                                          },
-                                    ),
-                                  ),
+                                InitialsAvatar(
+                                  name: _currentUserName,
+                                  size: 40,
+                                  fontSize: 14,
                                 ),
                                 const SizedBox(width: 12),
                                 // Comment input field

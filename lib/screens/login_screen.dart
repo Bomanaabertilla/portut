@@ -250,7 +250,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
 
-                const Spacer(),
+                const SizedBox(height: 24),
 
                 // Sign Up Link
                 Row(

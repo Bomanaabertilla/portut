@@ -11,6 +11,7 @@ class Post {
   final String authorId;
   final List<String> likedUsers;
   final List<String> commentsList;
+  final List<String> mediaUrls;
 
   Post({
     required this.id,
@@ -25,6 +26,7 @@ class Post {
     required this.authorId,
     this.likedUsers = const [],
     this.commentsList = const [],
+    this.mediaUrls = const [],
   });
 
   // Factory constructor to create Post from Map
@@ -46,6 +48,7 @@ class Post {
       authorId: authorId,
       likedUsers: List<String>.from(map['likedUsers'] ?? []),
       commentsList: List<String>.from(map['comments'] ?? []),
+      mediaUrls: List<String>.from(map['mediaUrls'] ?? map['media'] ?? []),
     );
   }
 
@@ -65,6 +68,7 @@ class Post {
       'isPublic': isPublic,
       'likedUsers': likedUsers,
       'authorId': authorId,
+      'mediaUrls': mediaUrls,
     };
   }
 
@@ -82,6 +86,7 @@ class Post {
     String? authorId,
     List<String>? likedUsers,
     List<String>? commentsList,
+    List<String>? mediaUrls,
   }) {
     return Post(
       id: id ?? this.id,
@@ -96,6 +101,7 @@ class Post {
       authorId: authorId ?? this.authorId,
       likedUsers: likedUsers ?? this.likedUsers,
       commentsList: commentsList ?? this.commentsList,
+      mediaUrls: mediaUrls ?? this.mediaUrls,
     );
   }
 }

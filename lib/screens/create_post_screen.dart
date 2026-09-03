@@ -85,8 +85,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       title: _titleController.text.trim(),
       description: _contentController.text.trim(),
       authorName: _currentUserName,
-      authorAvatar:
-          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=50&h=50&fit=crop&crop=face',
+      authorAvatar: '',
       timestamp: DateTime.now().toIso8601String(),
       likes: 0,
       comments: 0,

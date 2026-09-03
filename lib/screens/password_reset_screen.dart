@@ -334,7 +334,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   ),
                 ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               // Back to login link
               Row(
