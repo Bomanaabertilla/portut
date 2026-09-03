@@ -1337,8 +1337,16 @@ class _HomeScreenState extends State<HomeScreen> {
     Color primaryColor,
     ThemeProvider themeProvider,
   ) {
+    final theme = Theme.of(context);
+    final drawerBg = theme.scaffoldBackgroundColor;
+    final textColor = isDark ? Colors.white : const Color(0xFF424242);
+    final subtextColor = isDark ? const Color(0xFF71767B) : Colors.grey[600]!;
+    final dividerColor = isDark ? const Color(0xFF2F3336) : Colors.black.withValues(alpha: 0.12);
+    final badgeColor = isDark ? const Color(0xFF1D9BF0) : primaryColor;
+    final checkColor = isDark ? const Color(0xFF00BA7C) : primaryColor;
+
     return Drawer(
-      backgroundColor: Colors.black,
+      backgroundColor: drawerBg,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1361,11 +1369,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF536471), width: 1.2),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF536471) : primaryColor.withValues(alpha: 0.4),
+                            width: 1.2,
+                          ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.more_vert,
-                          color: Colors.white,
+                          color: textColor,
                           size: 18,
                         ),
                       ),
@@ -1374,51 +1385,51 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                   Text(
                     _currentUserName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 19,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '@${_currentUserId ?? "b_bertilla24"}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF71767B),
+                      color: subtextColor,
                     ),
                   ),
                   const SizedBox(height: 14),
                   Row(
-                    children: const [
+                    children: [
                       Text(
                         '82 ',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: textColor,
                           fontSize: 14,
                         ),
                       ),
                       Text(
                         'Following',
                         style: TextStyle(
-                          color: Color(0xFF71767B),
+                          color: subtextColor,
                           fontSize: 14,
                         ),
                       ),
-                      SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       Text(
                         '11 ',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: textColor,
                           fontSize: 14,
                         ),
                       ),
                       Text(
                         'Followers',
                         style: TextStyle(
-                          color: Color(0xFF71767B),
+                          color: subtextColor,
                           fontSize: 14,
                         ),
                       ),
@@ -1428,10 +1439,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            const Divider(
+            Divider(
               height: 16,
               thickness: 0.5,
-              color: Color(0xFF2F3336),
+              color: dividerColor,
             ),
 
             // Navigation Links
@@ -1442,6 +1453,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildDrawerItem(
                     icon: Icons.person_outline,
                     title: 'Profile',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -1455,10 +1468,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildDrawerItem(
                     icon: Icons.verified_outlined,
                     title: 'Premium',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     trailingBadge: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1D9BF0),
+                        color: badgeColor,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Text(
@@ -1475,11 +1490,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildDrawerItem(
                     icon: Icons.people_outline,
                     title: 'Communities',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () {},
                   ),
                   _buildDrawerItem(
                     icon: Icons.bookmark_border,
                     title: 'Bookmarks',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () async {
                       Navigator.pop(context);
                       await Navigator.push(
@@ -1494,28 +1513,34 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildDrawerItem(
                     icon: Icons.list_alt,
                     title: 'Lists',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () {},
                   ),
                   _buildDrawerItem(
                     icon: Icons.graphic_eq,
                     title: 'Spaces',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () {},
                   ),
                   _buildDrawerItem(
                     icon: Icons.rocket_launch_outlined,
                     title: 'Creator Studio',
+                    textColor: textColor,
+                    iconColor: isDark ? Colors.white : primaryColor,
                     onTap: () {},
                   ),
                 ],
               ),
             ),
 
-            // Bottom Accounts Section (matching screenshot)
+            // Bottom Accounts Section
             Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: Color(0xFF2F3336), width: 0.5),
+                  top: BorderSide(color: dividerColor, width: 0.5),
                 ),
               ),
               child: Column(
@@ -1527,16 +1552,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 32,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF536471),
+                        color: isDark ? const Color(0xFF536471) : Colors.grey[400],
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     'Accounts',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 21,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1556,25 +1581,25 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Text(
                               _currentUserName,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: textColor,
                                 fontSize: 15.5,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             Text(
                               '@${_currentUserId ?? "b_bertilla24"}',
-                              style: const TextStyle(
-                                color: Color(0xFF71767B),
+                              style: TextStyle(
+                                color: subtextColor,
                                 fontSize: 13,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.check_circle,
-                        color: Color(0xFF00BA7C),
+                        color: checkColor,
                         size: 20,
                       ),
                     ],
@@ -1589,15 +1614,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pushNamed(context, '/signup');
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF536471)),
+                        side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Create a new account',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDark ? Colors.white : primaryColor,
                           fontSize: 14.5,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1614,15 +1639,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pushNamed(context, '/login');
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF536471)),
+                        side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Add an existing account',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: isDark ? Colors.white : primaryColor,
                           fontSize: 14.5,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1641,6 +1666,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDrawerItem({
     required IconData icon,
     required String title,
+    required Color textColor,
+    required Color iconColor,
     Widget? trailingBadge,
     required VoidCallback onTap,
   }) {
@@ -1648,13 +1675,13 @@ class _HomeScreenState extends State<HomeScreen> {
       dense: true,
       visualDensity: const VisualDensity(vertical: 0.5),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-      leading: Icon(icon, color: Colors.white, size: 24),
+      leading: Icon(icon, color: iconColor, size: 24),
       title: Row(
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: textColor,
               fontSize: 17.5,
               fontWeight: FontWeight.bold,
             ),

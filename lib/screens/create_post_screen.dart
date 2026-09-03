@@ -116,7 +116,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   // --- Drafts Management ---
-  Future<void> _saveDraft() async {
+  Future<void> _saveDraft(Color primaryColor) async {
     if (_contentController.text.trim().isEmpty && _selectedMedia.isEmpty) {
       Navigator.pop(context);
       return;
@@ -129,17 +129,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Draft saved'),
-          backgroundColor: Color(0xFF1D9BF0),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: const Text('Draft saved'),
+          backgroundColor: primaryColor,
+          duration: const Duration(seconds: 2),
         ),
       );
       Navigator.pop(context);
     }
   }
 
-  Future<void> _showDraftsSheet() async {
+  Future<void> _showDraftsSheet(
+    bool isDark,
+    Color primaryColor,
+    Color cardBg,
+    Color textColor,
+    Color hintColor,
+    Color dividerColor,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final drafts = prefs.getStringList('post_drafts') ?? [];
 
@@ -147,7 +154,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF16181C),
+      backgroundColor: cardBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -164,10 +171,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Drafts',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: textColor,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -185,14 +192,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           ),
                       ],
                     ),
-                    const Divider(color: Color(0xFF2F3336)),
+                    Divider(color: dividerColor),
                     if (drafts.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
                         child: Center(
                           child: Text(
                             'No saved drafts',
-                            style: TextStyle(color: Color(0xFF71767B)),
+                            style: TextStyle(color: hintColor),
                           ),
                         ),
                       )
@@ -202,7 +209,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           shrinkWrap: true,
                           itemCount: drafts.length,
                           separatorBuilder: (_, __) =>
-                              const Divider(color: Color(0xFF2F3336), height: 1),
+                              Divider(color: dividerColor, height: 1),
                           itemBuilder: (context, i) {
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
@@ -210,12 +217,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 drafts[i],
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Colors.white),
+                                style: TextStyle(color: textColor),
                               ),
                               trailing: IconButton(
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.close,
-                                  color: Color(0xFF71767B),
+                                  color: hintColor,
                                   size: 18,
                                 ),
                                 onPressed: () async {
@@ -246,10 +253,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   // --- Reply Privacy Selection Sheet ---
-  void _showReplyAudienceSheet() {
+  void _showReplyAudienceSheet(
+    Color cardBg,
+    Color textColor,
+    Color hintColor,
+    Color primaryColor,
+  ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF16181C),
+      backgroundColor: cardBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -261,24 +273,26 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Who can reply?',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Choose who can reply to this post. Anyone mentioned can always reply.',
-                  style: TextStyle(color: Color(0xFF71767B), fontSize: 13.5),
+                  style: TextStyle(color: hintColor, fontSize: 13.5),
                 ),
                 const SizedBox(height: 16),
                 _buildAudienceOption(
                   icon: Icons.public,
                   title: 'Everyone',
                   selected: _replyAudience == 'Everyone can reply',
+                  textColor: textColor,
+                  primaryColor: primaryColor,
                   onTap: () {
                     setState(() => _replyAudience = 'Everyone can reply');
                     Navigator.pop(ctx);
@@ -288,6 +302,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   icon: Icons.people_outline,
                   title: 'Accounts you follow',
                   selected: _replyAudience == 'Accounts you follow can reply',
+                  textColor: textColor,
+                  primaryColor: primaryColor,
                   onTap: () {
                     setState(() => _replyAudience = 'Accounts you follow can reply');
                     Navigator.pop(ctx);
@@ -297,6 +313,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   icon: Icons.alternate_email,
                   title: 'Only accounts you mention',
                   selected: _replyAudience == 'Only mentioned accounts can reply',
+                  textColor: textColor,
+                  primaryColor: primaryColor,
                   onTap: () {
                     setState(() => _replyAudience = 'Only mentioned accounts can reply');
                     Navigator.pop(ctx);
@@ -314,6 +332,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     required IconData icon,
     required String title,
     required bool selected,
+    required Color textColor,
+    required Color primaryColor,
     required VoidCallback onTap,
   }) {
     return ListTile(
@@ -321,22 +341,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       contentPadding: const EdgeInsets.symmetric(vertical: 2),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1D9BF0),
+        decoration: BoxDecoration(
+          color: primaryColor,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: Colors.white, size: 20),
       ),
       title: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: textColor,
           fontSize: 15,
           fontWeight: FontWeight.w600,
         ),
       ),
       trailing: selected
-          ? const Icon(Icons.check, color: Color(0xFF1D9BF0), size: 20)
+          ? Icon(Icons.check, color: primaryColor, size: 20)
           : null,
     );
   }
@@ -376,12 +396,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = isDark ? const Color(0xFF1D9BF0) : theme.colorScheme.primary;
+    final scaffoldBg = theme.scaffoldBackgroundColor;
+    final textColor = isDark ? Colors.white : const Color(0xFF424242);
+    final hintColor = isDark ? const Color(0xFF71767B) : Colors.grey[600]!;
+    final dividerColor = isDark ? const Color(0xFF2F3336) : Colors.black.withValues(alpha: 0.12);
+    final cardBg = isDark ? const Color(0xFF16181C) : Colors.white;
+
     final bool canPost = _contentController.text.trim().isNotEmpty ||
         _selectedMedia.isNotEmpty;
     final double progress = (_charCount / _maxChars).clamp(0.0, 1.0);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: scaffoldBg,
       body: SafeArea(
         child: Column(
           children: [
@@ -394,10 +423,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                    icon: Icon(Icons.close, color: textColor, size: 26),
                     onPressed: () {
                       if (_contentController.text.trim().isNotEmpty) {
-                        _showDiscardDialog();
+                        _showDiscardDialog(cardBg, textColor, hintColor, primaryColor);
                       } else {
                         Navigator.pop(context);
                       }
@@ -406,11 +435,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   const Spacer(),
                   // Drafts Button
                   TextButton(
-                    onPressed: _showDraftsSheet,
-                    child: const Text(
+                    onPressed: () => _showDraftsSheet(
+                      isDark,
+                      primaryColor,
+                      cardBg,
+                      textColor,
+                      hintColor,
+                      dividerColor,
+                    ),
+                    child: Text(
                       'Drafts',
                       style: TextStyle(
-                        color: Color(0xFF1D9BF0),
+                        color: primaryColor,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
@@ -428,8 +464,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: canPost
-                            ? const Color(0xFF1D9BF0)
-                            : const Color(0xFF1D9BF0).withValues(alpha: 0.5),
+                            ? primaryColor
+                            : primaryColor.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
@@ -470,21 +506,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             autofocus: true,
                             maxLines: null,
                             keyboardType: TextInputType.multiline,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: textColor,
                               fontSize: 18,
                               height: 1.35,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: "What's happening?",
                               hintStyle: TextStyle(
-                                color: Color(0xFF71767B),
+                                color: hintColor,
                                 fontSize: 18,
                                 fontWeight: FontWeight.w400,
                               ),
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding: EdgeInsets.only(top: 8, bottom: 12),
+                              contentPadding: const EdgeInsets.only(top: 8, bottom: 12),
                             ),
                           ),
 
@@ -505,7 +541,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                       child: Container(
                                         width: 100,
                                         height: 100,
-                                        color: const Color(0xFF16181C),
+                                        color: cardBg,
                                         child: isImage &&
                                                 file.path != null &&
                                                 File(file.path!).existsSync()
@@ -516,7 +552,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                             : const Center(
                                                 child: Icon(
                                                   Icons.insert_drive_file,
-                                                  color: Colors.white70,
+                                                  color: Colors.grey,
                                                   size: 32,
                                                 ),
                                               ),
@@ -562,19 +598,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: GestureDetector(
-                    onTap: _showReplyAudienceSheet,
+                    onTap: () => _showReplyAudienceSheet(
+                      cardBg,
+                      textColor,
+                      hintColor,
+                      primaryColor,
+                    ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.public,
-                          color: Color(0xFF1D9BF0),
+                          color: primaryColor,
                           size: 15,
                         ),
                         const SizedBox(width: 6),
                         Text(
                           _replyAudience,
-                          style: const TextStyle(
-                            color: Color(0xFF1D9BF0),
+                          style: TextStyle(
+                            color: primaryColor,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -584,8 +625,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                 ),
 
-                const Divider(
-                  color: Color(0xFF2F3336),
+                Divider(
+                  color: dividerColor,
                   height: 1,
                   thickness: 0.6,
                 ),
@@ -601,16 +642,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       // Media Gallery Icon
                       _buildToolbarIconButton(
                         icon: Icons.image_outlined,
+                        color: primaryColor,
                         onTap: () => _pickMedia(FileType.image),
                       ),
                       // Camera Icon
                       _buildToolbarIconButton(
                         icon: Icons.camera_alt_outlined,
+                        color: primaryColor,
                         onTap: () => _pickMedia(FileType.image),
                       ),
                       // Poll Icon
                       _buildToolbarIconButton(
                         icon: Icons.poll_outlined,
+                        color: primaryColor,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -638,15 +682,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           ),
                           decoration: BoxDecoration(
                             border: Border.all(
-                              color: const Color(0xFF1D9BF0),
+                              color: primaryColor,
                               width: 1.5,
                             ),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text(
+                          child: Text(
                             'GIF',
                             style: TextStyle(
-                              color: Color(0xFF1D9BF0),
+                              color: primaryColor,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -656,11 +700,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       // Tune / Sliders Icon
                       _buildToolbarIconButton(
                         icon: Icons.tune_outlined,
+                        color: primaryColor,
                         onTap: () {},
                       ),
                       // Location Pin Icon
                       _buildToolbarIconButton(
                         icon: Icons.location_on_outlined,
+                        color: primaryColor,
                         onTap: () {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -677,7 +723,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       Container(
                         height: 20,
                         width: 1,
-                        color: const Color(0xFF2F3336),
+                        color: dividerColor,
                       ),
                       const SizedBox(width: 10),
 
@@ -688,13 +734,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         child: CircularProgressIndicator(
                           value: progress,
                           strokeWidth: 2.2,
-                          backgroundColor: const Color(0xFF2F3336),
+                          backgroundColor: dividerColor,
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _charCount > _maxChars
                                 ? Colors.red
                                 : _charCount > 260
                                     ? Colors.orange
-                                    : const Color(0xFF1D9BF0),
+                                    : primaryColor,
                           ),
                         ),
                       ),
@@ -712,8 +758,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         },
                         child: Container(
                           padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF1D9BF0),
+                          decoration: BoxDecoration(
+                            color: primaryColor,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -736,10 +782,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   Widget _buildToolbarIconButton({
     required IconData icon,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return IconButton(
-      icon: Icon(icon, color: const Color(0xFF1D9BF0), size: 22),
+      icon: Icon(icon, color: color, size: 22),
       onPressed: onTap,
       splashRadius: 20,
       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -747,19 +794,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  void _showDiscardDialog() {
+  void _showDiscardDialog(
+    Color cardBg,
+    Color textColor,
+    Color hintColor,
+    Color primaryColor,
+  ) {
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF16181C),
-          title: const Text(
+          backgroundColor: cardBg,
+          title: Text(
             'Save post as draft?',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
           ),
-          content: const Text(
+          content: Text(
             'You can save this to drafts or discard it.',
-            style: TextStyle(color: Color(0xFF71767B)),
+            style: TextStyle(color: hintColor),
           ),
           actions: [
             TextButton(
@@ -771,11 +823,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1D9BF0),
+                backgroundColor: primaryColor,
               ),
               onPressed: () {
                 Navigator.pop(ctx);
-                _saveDraft();
+                _saveDraft(primaryColor);
               },
               child: const Text('Save Draft', style: TextStyle(color: Colors.white)),
             ),
