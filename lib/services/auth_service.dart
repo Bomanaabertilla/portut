@@ -81,6 +81,25 @@ class AuthService {
     }
   }
 
+  // Update user profile details & avatar/cover paths
+  Future<bool> updateUserProfile(User updatedUser) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final users = await getUsers();
+      final index = users.indexWhere((u) => u.username == updatedUser.username);
+      if (index != -1) {
+        users[index] = updatedUser;
+        final usersJson = users.map((u) => json.encode(u.toMap())).toList();
+        await prefs.setStringList(_usersKey, usersJson);
+      }
+      await prefs.setString(_currentUserKey, json.encode(updatedUser.toMap()));
+      return true;
+    } catch (e) {
+      print('Error updating user profile: $e');
+      return false;
+    }
+  }
+
   // Logout user
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
@@ -97,4 +116,4 @@ class AuthService {
   bool validatePassword(String password) {
     return password.length >= 6;
   }
-} 
+}

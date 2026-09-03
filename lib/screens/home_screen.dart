@@ -17,6 +17,7 @@ import '../widgets/search_view.dart';
 import '../widgets/notifications_view.dart';
 import '../widgets/messages_view.dart';
 import '../models/post.dart';
+import '../models/user.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Home Feed Tabs: 0="For you", 1="Following"
   int _currentFeedTabIndex = 0;
 
+  User? _currentUser;
   String? _currentUserId;
   String _currentUserName = 'User';
   List<Post> _posts = [];
@@ -94,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final user = await _authService.getCurrentUser();
       if (mounted) {
         setState(() {
+          _currentUser = user;
           _currentUserId = user?.username ?? 'current_user';
           _currentUserName = (user != null && user.displayName.isNotEmpty)
               ? user.displayName
@@ -106,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Error loading current user: $e');
       if (mounted) {
         setState(() {
+          _currentUser = null;
           _currentUserId = 'current_user';
           _currentUserName = 'User';
         });
@@ -468,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: InitialsAvatar(
               name: _currentUserName,
               size: 34,
-              fontSize: 13,
+              imagePath: _currentUser?.avatarPath,
             ),
           ),
 
@@ -1364,6 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         name: _currentUserName,
                         size: 48,
                         fontSize: 18,
+                        imagePath: _currentUser?.avatarPath,
                       ),
                       Container(
                         padding: const EdgeInsets.all(4),
@@ -1455,14 +1460,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     title: 'Profile',
                     textColor: textColor,
                     iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => const ProfileScreen(),
                         ),
                       );
+                      _loadCurrentUser();
                     },
                   ),
                   _buildDrawerItem(
@@ -1573,6 +1579,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         name: _currentUserName,
                         size: 38,
                         fontSize: 14,
+                        imagePath: _currentUser?.avatarPath,
                       ),
                       const SizedBox(width: 12),
                       Expanded(

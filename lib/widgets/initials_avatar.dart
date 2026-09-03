@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 
 class InitialsAvatar extends StatelessWidget {
@@ -7,6 +8,7 @@ class InitialsAvatar extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final Border? border;
+  final String? imagePath;
 
   const InitialsAvatar({
     super.key,
@@ -16,6 +18,7 @@ class InitialsAvatar extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.border,
+    this.imagePath,
   });
 
   /// Extracts 1 or 2 uppercase initials from a name or username
@@ -51,6 +54,44 @@ class InitialsAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool hasLocalFile = imagePath != null &&
+        !imagePath!.startsWith('http') &&
+        File(imagePath!).existsSync();
+    final bool hasNetworkImage =
+        imagePath != null && imagePath!.startsWith('http');
+
+    if (hasLocalFile || hasNetworkImage) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: border,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(size / 2),
+          child: hasLocalFile
+              ? Image.file(
+                  File(imagePath!),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                )
+              : Image.network(
+                  imagePath!,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildInitialsFallback(),
+                ),
+        ),
+      );
+    }
+
+    return _buildInitialsFallback();
+  }
+
+  Widget _buildInitialsFallback() {
     final initials = getInitials(name);
     final bgColor = backgroundColor ?? getColorForName(name);
     final computedFontSize = fontSize ?? (size * 0.4);

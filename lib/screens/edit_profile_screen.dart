@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../widgets/initials_avatar.dart';
 
@@ -37,17 +35,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (user != null && mounted) {
       setState(() {
         _nameController.text = user.displayName;
-        _bioController.text = 'Nyame ne Hene. 💗';
-        _locationController.text = 'Ghana';
-        _websiteController.text = '';
-        _birthDateController.text = 'December 21, 2003';
-      });
-
-      // Load saved custom avatar/cover paths from SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _avatarPath = prefs.getString('custom_avatar_${user.username}');
-        _coverPath = prefs.getString('custom_cover_${user.username}');
+        _bioController.text = user.bio ?? 'Nyame ne Hene. 💗';
+        _locationController.text = user.location ?? 'Ghana';
+        _websiteController.text = user.website ?? '';
+        _birthDateController.text = user.birthDate ?? 'December 21, 2003';
+        _avatarPath = user.avatarPath;
+        _coverPath = user.coverPath;
       });
     }
   }
@@ -103,28 +96,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final user = await _authService.getCurrentUser();
       if (user != null) {
-        final updated = user.copyWith(
+        final updatedUser = user.copyWith(
           displayName: _nameController.text.trim(),
+          bio: _bioController.text.trim(),
+          location: _locationController.text.trim(),
+          website: _websiteController.text.trim(),
+          birthDate: _birthDateController.text.trim(),
+          avatarPath: _avatarPath,
+          coverPath: _coverPath,
         );
 
-        final prefs = await SharedPreferences.getInstance();
-        final users = await _authService.getUsers();
-        final idx = users.indexWhere((u) => u.username == user.username);
-        if (idx != -1) {
-          users[idx] = updated;
-          await prefs.setStringList(
-            'users',
-            users.map((u) => jsonEncode(u.toMap())).toList(),
-          );
-        }
-        await prefs.setString('current_user', jsonEncode(updated.toMap()));
-
-        if (_avatarPath != null) {
-          await prefs.setString('custom_avatar_${user.username}', _avatarPath!);
-        }
-        if (_coverPath != null) {
-          await prefs.setString('custom_cover_${user.username}', _coverPath!);
-        }
+        await _authService.updateUserProfile(updatedUser);
       }
     } catch (e) {
       print('Error saving user profile: $e');
@@ -133,7 +115,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Profile saved!'),
+            content: const Text('Profile saved successfully!'),
             backgroundColor: primaryColor,
             duration: const Duration(seconds: 2),
           ),
@@ -336,23 +318,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     color: scaffoldBg,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(40),
-                                    child: _avatarPath != null &&
-                                            File(_avatarPath!).existsSync()
-                                        ? Image.file(
-                                            File(_avatarPath!),
-                                            width: 76,
-                                            height: 76,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : InitialsAvatar(
-                                            name: _nameController.text.isNotEmpty
-                                                ? _nameController.text
-                                                : 'User',
-                                            size: 76,
-                                            fontSize: 28,
-                                          ),
+                                  child: InitialsAvatar(
+                                    name: _nameController.text.isNotEmpty
+                                        ? _nameController.text
+                                        : 'User',
+                                    size: 76,
+                                    fontSize: 28,
+                                    imagePath: _avatarPath,
                                   ),
                                 ),
                                 // Translucent camera overlay badge

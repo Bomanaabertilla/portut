@@ -231,12 +231,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: double.infinity,
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF1E1E1E) : primaryColor.withValues(alpha: 0.8),
-                            image: const DecorationImage(
-                              image: NetworkImage(
-                                'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=1200&q=80',
-                              ),
-                              fit: BoxFit.cover,
-                            ),
+                            image: _user?.coverPath != null && File(_user!.coverPath!).existsSync()
+                                ? DecorationImage(
+                                    image: FileImage(File(_user!.coverPath!)),
+                                    fit: BoxFit.cover,
+                                  )
+                                : const DecorationImage(
+                                    image: NetworkImage(
+                                      'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=1200&q=80',
+                                    ),
+                                    fit: BoxFit.cover,
+                                  ),
                           ),
                         ),
 
@@ -288,6 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               name: displayName,
                               size: 76,
                               fontSize: 28,
+                              imagePath: _user?.avatarPath,
                             ),
                           ),
                         ),
@@ -368,33 +374,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
 
                           // Bio
-                          const SizedBox(height: 12),
-                          Text(
-                            'Nyame ne Hene. 💗',
-                            style: TextStyle(
-                              fontSize: 14.5,
-                              color: textColor,
+                          if ((_user?.bio ?? 'Nyame ne Hene. 💗').isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              _user?.bio ?? 'Nyame ne Hene. 💗',
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                color: textColor,
+                              ),
                             ),
-                          ),
+                          ],
 
                           // Location & Birth Date Info
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              Icon(
-                                Icons.location_on_outlined,
-                                color: subtextColor,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Ghana',
-                                style: TextStyle(
-                                  fontSize: 13.5,
+                              if ((_user?.location ?? 'Ghana').isNotEmpty) ...[
+                                Icon(
+                                  Icons.location_on_outlined,
                                   color: subtextColor,
+                                  size: 16,
                                 ),
-                              ),
-                              const SizedBox(width: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _user?.location ?? 'Ghana',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    color: subtextColor,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                              ],
                               Icon(
                                 Icons.cake_outlined,
                                 color: subtextColor,
@@ -402,7 +412,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'Born December 21, 2003',
+                                _user?.birthDate != null && _user!.birthDate!.isNotEmpty
+                                    ? 'Born ${_user!.birthDate}'
+                                    : 'Born December 21, 2003',
                                 style: TextStyle(
                                   fontSize: 13.5,
                                   color: subtextColor,
