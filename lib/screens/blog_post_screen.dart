@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../models/post.dart';
 import '../services/auth_service.dart';
@@ -164,6 +165,7 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
         comments: widget.post!.comments,
         isPublic: _isPublic,
         authorId: widget.post!.authorId,
+        mediaUrls: widget.post!.mediaUrls,
       );
       Navigator.pop(context, updatedPost);
     } else {
@@ -397,37 +399,94 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                     ),
 
                     // Main Article Image
-                    Container(
-                      width: double.infinity,
-                      height: 200,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=200&fit=crop',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
+                    Builder(
+                      builder: (context) {
+                        final mediaList = post?.mediaUrls ?? [];
+                        final imagePath = mediaList.firstWhere(
+                          (p) {
+                            final lower = p.toLowerCase();
+                            return lower.endsWith('.jpg') ||
+                                lower.endsWith('.jpeg') ||
+                                lower.endsWith('.png') ||
+                                lower.endsWith('.webp') ||
+                                lower.endsWith('.gif') ||
+                                lower.startsWith('http');
+                          },
+                          orElse: () => '',
+                        );
+
+                        Widget imageWidget;
+                        if (imagePath.isNotEmpty) {
+                          if (imagePath.startsWith('http')) {
+                            imageWidget = Image.network(
+                              imagePath,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey[300],
+                                child: const Icon(
+                                  Icons.image,
+                                  size: 60,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            );
+                          } else {
+                            final file = File(imagePath);
+                            if (file.existsSync()) {
+                              imageWidget = Image.file(
+                                file,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: Colors.grey[300],
+                                  child: const Icon(
+                                    Icons.image,
+                                    size: 60,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              imageWidget = Image.network(
+                                'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=200&fit=crop',
+                                fit: BoxFit.cover,
+                              );
+                            }
+                          }
+                        } else {
+                          imageWidget = Image.network(
+                            'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=200&fit=crop',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
                               color: Colors.grey[300],
                               child: const Icon(
                                 Icons.image,
                                 size: 60,
                                 color: Colors.grey,
                               ),
-                            );
-                          },
-                        ),
-                      ),
+                            ),
+                          );
+                        }
+
+                        return Container(
+                          width: double.infinity,
+                          height: 200,
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: imageWidget,
+                          ),
+                        );
+                      },
                     ),
 
                     // Article Content
@@ -454,6 +513,86 @@ class _BlogPostScreenState extends State<BlogPostScreen> {
                               height: 1.6,
                             ),
                           ),
+                          // Attached PDF / Document files if any
+                          if (post != null &&
+                              post.mediaUrls.any((m) =>
+                                  m.toLowerCase().endsWith('.pdf') ||
+                                  m.toLowerCase().endsWith('.doc') ||
+                                  m.toLowerCase().endsWith('.docx'))) ...[
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Attachments',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF424242),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            ...post.mediaUrls
+                                .where((m) =>
+                                    m.toLowerCase().endsWith('.pdf') ||
+                                    m.toLowerCase().endsWith('.doc') ||
+                                    m.toLowerCase().endsWith('.docx'))
+                                .map((docPath) {
+                              final name = docPath.split(RegExp(r'[\\/]')).last;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.grey.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.picture_as_pdf,
+                                      color: Colors.redAccent,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: Color(0xFF424242),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF8B4513),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'PDF',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
                           const SizedBox(height: 24),
 
                           // Comments Section Header
