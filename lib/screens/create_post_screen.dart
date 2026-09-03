@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/post.dart';
 import '../services/auth_service.dart';
 import '../services/post_service.dart';
+import '../widgets/initials_avatar.dart';
 
 class CreatePostScreen extends StatefulWidget {
   const CreatePostScreen({super.key});
@@ -13,20 +15,27 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
-  final _titleController = TextEditingController();
-  final _contentController = TextEditingController();
+  final TextEditingController _contentController = TextEditingController();
   final List<PlatformFile> _selectedMedia = [];
   bool _isPickingMedia = false;
-  bool _isPublic = true; // Toggle for visibility
   String? _currentUserId;
-  String _currentUserName = 'Current User';
+  String _currentUserName = 'User';
+  String _replyAudience = 'Everyone can reply';
+  int _charCount = 0;
+  static const int _maxChars = 280;
 
   final AuthService _authService = AuthService();
+  final PostService _postService = PostService();
 
   @override
   void initState() {
     super.initState();
     _loadCurrentUser();
+    _contentController.addListener(() {
+      setState(() {
+        _charCount = _contentController.text.length;
+      });
+    });
   }
 
   Future<void> _loadCurrentUser() async {
@@ -35,131 +44,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       if (mounted) {
         setState(() {
           _currentUserId = user?.username ?? 'current_user';
-          _currentUserName = user?.displayName ?? 'Current User';
+          _currentUserName = user?.displayName ?? (user?.username ?? 'User');
         });
       }
-    } catch (e) {
-      print('Error loading current user: $e');
-      setState(() {
-        _currentUserId = 'current_user';
-        _currentUserName = 'Current User';
-      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _currentUserId = 'current_user';
+          _currentUserName = 'User';
+        });
+      }
     }
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
 
-  void _uploadMedia() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Attach Media',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF424242),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B4513).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.photo_library, color: Color(0xFF8B4513)),
-                ),
-                title: const Text(
-                  'Upload Images',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF424242)),
-                ),
-                subtitle: const Text('PNG, JPG, JPEG, WEBP, GIF'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickMedia(FileType.image);
-                },
-              ),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
-                ),
-                title: const Text(
-                  'Upload PDF Document',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF424242)),
-                ),
-                subtitle: const Text('PDF documents and files'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickMedia(FileType.custom, extensions: ['pdf']);
-                },
-              ),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.blueAccent.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.folder_open, color: Colors.blueAccent),
-                ),
-                title: const Text(
-                  'Browse All Supported Files',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF424242)),
-                ),
-                subtitle: const Text('Images and PDF documents'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickMedia(
-                    FileType.custom,
-                    extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _pickMedia(FileType type, {List<String>? extensions}) async {
+    if (_isPickingMedia) return;
     setState(() => _isPickingMedia = true);
 
     try {
@@ -169,7 +74,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       );
 
       if (files.isNotEmpty && mounted) {
-        int addedCount = 0;
         setState(() {
           for (final file in files) {
             final exists = _selectedMedia.any(
@@ -178,28 +82,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             );
             if (!exists) {
               _selectedMedia.add(file);
-              addedCount++;
             }
           }
         });
-
-        if (mounted && addedCount > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '$addedCount media file${addedCount == 1 ? '' : 's'} added',
-              ),
-              backgroundColor: const Color(0xFF8B4513),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to pick files: $e'),
+            content: Text('Failed to pick file: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -224,582 +115,437 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'].contains(ext);
   }
 
-  bool _isPdfFile(PlatformFile file) {
-    final ext = file.extension?.toLowerCase() ?? '';
-    return ext == 'pdf';
+  // --- Drafts Management ---
+  Future<void> _saveDraft() async {
+    if (_contentController.text.trim().isEmpty && _selectedMedia.isEmpty) {
+      Navigator.pop(context);
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final drafts = prefs.getStringList('post_drafts') ?? [];
+    drafts.insert(0, _contentController.text.trim());
+    await prefs.setStringList('post_drafts', drafts);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Draft saved'),
+          backgroundColor: Color(0xFF1D9BF0),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context);
+    }
   }
 
-  String _formatFileSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  Future<void> _showDraftsSheet() async {
+    final prefs = await SharedPreferences.getInstance();
+    final drafts = prefs.getStringList('post_drafts') ?? [];
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16181C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Drafts',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (drafts.isNotEmpty)
+                          TextButton(
+                            onPressed: () async {
+                              await prefs.remove('post_drafts');
+                              setSheetState(() => drafts.clear());
+                            },
+                            child: const Text(
+                              'Clear All',
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Divider(color: Color(0xFF2F3336)),
+                    if (drafts.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No saved drafts',
+                            style: TextStyle(color: Color(0xFF71767B)),
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: drafts.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(color: Color(0xFF2F3336), height: 1),
+                          itemBuilder: (context, i) {
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                drafts[i],
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Color(0xFF71767B),
+                                  size: 18,
+                                ),
+                                onPressed: () async {
+                                  drafts.removeAt(i);
+                                  await prefs.setStringList(
+                                    'post_drafts',
+                                    drafts,
+                                  );
+                                  setSheetState(() {});
+                                },
+                              ),
+                              onTap: () {
+                                _contentController.text = drafts[i];
+                                Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- Reply Privacy Selection Sheet ---
+  void _showReplyAudienceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF16181C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Who can reply?',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Choose who can reply to this post. Anyone mentioned can always reply.',
+                  style: TextStyle(color: Color(0xFF71767B), fontSize: 13.5),
+                ),
+                const SizedBox(height: 16),
+                _buildAudienceOption(
+                  icon: Icons.public,
+                  title: 'Everyone',
+                  selected: _replyAudience == 'Everyone can reply',
+                  onTap: () {
+                    setState(() => _replyAudience = 'Everyone can reply');
+                    Navigator.pop(ctx);
+                  },
+                ),
+                _buildAudienceOption(
+                  icon: Icons.people_outline,
+                  title: 'Accounts you follow',
+                  selected: _replyAudience == 'Accounts you follow can reply',
+                  onTap: () {
+                    setState(() => _replyAudience = 'Accounts you follow can reply');
+                    Navigator.pop(ctx);
+                  },
+                ),
+                _buildAudienceOption(
+                  icon: Icons.alternate_email,
+                  title: 'Only accounts you mention',
+                  selected: _replyAudience == 'Only mentioned accounts can reply',
+                  onTap: () {
+                    setState(() => _replyAudience = 'Only mentioned accounts can reply');
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAudienceOption({
+    required IconData icon,
+    required String title,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(vertical: 2),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1D9BF0),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.white, size: 20),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      trailing: selected
+          ? const Icon(Icons.check, color: Color(0xFF1D9BF0), size: 20)
+          : null,
+    );
   }
 
   Future<void> _publishPost() async {
-    if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a title for your post'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_contentController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please write some content for your post'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    final text = _contentController.text.trim();
+    if (text.isEmpty && _selectedMedia.isEmpty) return;
 
     final mediaUrls = _selectedMedia
         .map((f) => f.path ?? f.name)
         .where((p) => p.isNotEmpty)
         .toList();
 
-    // Create new post
     final newPost = Post(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleController.text.trim(),
-      description: _contentController.text.trim(),
+      title: '',
+      description: text,
       authorName: _currentUserName,
       authorAvatar: '',
       timestamp: DateTime.now().toIso8601String(),
       likes: 0,
       comments: 0,
-      isPublic: _isPublic,
+      isPublic: true,
       authorId: _currentUserId ?? 'current_user',
       mediaUrls: mediaUrls,
     );
 
-    print('Creating post: "${newPost.title}"');
-    print('Author: ${newPost.authorName} (ID: ${newPost.authorId})');
-    print('Public: ${newPost.isPublic}');
-    print('Current user ID: $_currentUserId');
-
-    // Save to PostService so it's immediately persisted
-    final postService = PostService();
-    await postService.savePost(
+    await _postService.savePost(
       _currentUserId ?? 'current_user',
       newPost.toMap(),
     );
 
     if (mounted) {
-      // Return the post to the previous screen and navigate back
       Navigator.pop(context, newPost);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool canPost = _contentController.text.trim().isNotEmpty ||
+        _selectedMedia.isNotEmpty;
+    final double progress = (_charCount / _maxChars).clamp(0.0, 1.0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5DC), // Light beige background
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            // --- TOP BAR ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Color(0xFF424242),
-                      size: 24,
+                  // Close 'X' Button
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.close, color: Colors.white, size: 26),
+                    onPressed: () {
+                      if (_contentController.text.trim().isNotEmpty) {
+                        _showDiscardDialog();
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                  ),
+                  const Spacer(),
+                  // Drafts Button
+                  TextButton(
+                    onPressed: _showDraftsSheet,
+                    child: const Text(
+                      'Drafts',
+                      style: TextStyle(
+                        color: Color(0xFF1D9BF0),
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  const Text(
-                    'Create Post',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF424242),
+                  const SizedBox(width: 8),
+                  // Post Button
+                  GestureDetector(
+                    onTap: canPost ? _publishPost : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: canPost
+                            ? const Color(0xFF1D9BF0)
+                            : const Color(0xFF1D9BF0).withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Post',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Content
+            // --- MAIN COMPOSE BODY ---
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title Section
-                    const Text(
-                      'Title',
-                      style: TextStyle(
-                        color: Color(0xFF424242),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
+                    // User Avatar
+                    InitialsAvatar(
+                      name: _currentUserName,
+                      size: 40,
+                      fontSize: 15,
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _titleController,
-                        style: const TextStyle(color: Colors.black),
-                        decoration: const InputDecoration(
-                          hintText: 'Enter your post title...',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                        ),
-                        maxLines: 2,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Content Section
-                    const Text(
-                      'Content',
-                      style: TextStyle(
-                        color: Color(0xFF424242),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: TextField(
-                        controller: _contentController,
-                        decoration: const InputDecoration(
-                          hintText: 'Write your post content here...',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 16,
-                          ),
-                        ),
-                        maxLines: 8,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black87,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Media Section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Media',
-                          style: TextStyle(
-                            color: Color(0xFF424242),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                        ),
-                        if (_selectedMedia.isNotEmpty)
-                          Text(
-                            '${_selectedMedia.length} attached',
+                    const SizedBox(width: 12),
+                    // Expanded Text Field & Media Previews
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: _contentController,
+                            autofocus: true,
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
                             style: const TextStyle(
-                              color: Color(0xFF8B4513),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    if (_selectedMedia.isNotEmpty) ...[
-                      Column(
-                        children: List.generate(_selectedMedia.length, (index) {
-                          final file = _selectedMedia[index];
-                          final isImage = _isImageFile(file);
-                          final isPdf = _isPdfFile(file);
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFF8B4513).withValues(alpha: 0.2),
+                              fontSize: 18,
+                              height: 1.35,
+                            ),
+                            decoration: const InputDecoration(
+                              hintText: "What's happening?",
+                              hintStyle: TextStyle(
+                                color: Color(0xFF71767B),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w400,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                // Thumbnail / Icon preview
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Container(
-                                    width: 52,
-                                    height: 52,
-                                    color: isImage
-                                        ? const Color(0xFF8B4513).withValues(alpha: 0.08)
-                                        : isPdf
-                                            ? Colors.red.withValues(alpha: 0.08)
-                                            : Colors.blue.withValues(alpha: 0.08),
-                                    child: isImage &&
-                                            file.path != null &&
-                                            File(file.path!).existsSync()
-                                        ? Image.file(
-                                            File(file.path!),
-                                            width: 52,
-                                            height: 52,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => const Icon(
-                                              Icons.image,
-                                              color: Color(0xFF8B4513),
-                                            ),
-                                          )
-                                        : Icon(
-                                            isImage
-                                                ? Icons.image
-                                                : isPdf
-                                                    ? Icons.picture_as_pdf
-                                                    : Icons.insert_drive_file,
-                                            color: isImage
-                                                ? const Color(0xFF8B4513)
-                                                : isPdf
-                                                    ? Colors.redAccent
-                                                    : Colors.blueAccent,
-                                            size: 28,
-                                          ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                // Details
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        file.name,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                          color: Color(0xFF424242),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 6,
-                                              vertical: 2,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: isPdf
-                                                  ? Colors.red.withValues(alpha: 0.1)
-                                                  : const Color(0xFF8B4513).withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(4),
-                                            ),
-                                            child: Text(
-                                              (file.extension ?? (isPdf ? 'PDF' : 'FILE')).toUpperCase(),
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: isPdf
-                                                    ? Colors.red
-                                                    : const Color(0xFF8B4513),
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            _formatFileSize(file.lengthSync() ?? 0),
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Remove button
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.cancel,
-                                    color: Colors.grey,
-                                    size: 22,
-                                  ),
-                                  onPressed: () => _removeMedia(index),
-                                  tooltip: 'Remove',
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 6),
-                      // Add more media button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 46,
-                        child: OutlinedButton.icon(
-                          onPressed: _isPickingMedia ? null : _uploadMedia,
-                          icon: const Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: 20,
-                            color: Color(0xFF8B4513),
-                          ),
-                          label: const Text(
-                            'Add More Files',
-                            style: TextStyle(
-                              color: Color(0xFF8B4513),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.only(top: 8, bottom: 12),
                             ),
                           ),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF8B4513)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      // Empty state upload dropzone
-                      GestureDetector(
-                        onTap: _isPickingMedia ? null : _uploadMedia,
-                        child: Container(
-                          width: double.infinity,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF8B4513).withValues(alpha: 0.3),
-                              width: 1.5,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: _isPickingMedia
-                              ? const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            Color(0xFF8B4513),
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(height: 10),
-                                      Text(
-                                        'Opening file picker...',
-                                        style: TextStyle(
-                                          color: Color(0xFF8B4513),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF8B4513).withValues(alpha: 0.1),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.cloud_upload,
-                                        color: Color(0xFF8B4513),
-                                        size: 32,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Upload Images or PDFs',
-                                      style: TextStyle(
-                                        color: Color(0xFF8B4513),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Tap to select files from device',
-                                      style: TextStyle(
-                                        color: Colors.grey[600],
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
 
-                    // Visibility Section
-                    Row(
-                      children: [
-                        const Text(
-                          'Visibility',
-                          style: TextStyle(
-                            color: Color(0xFF424242),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const Spacer(),
-                        // Toggle Switch
-                        Row(
-                          children: [
-                            Text(
-                              'Private',
-                              style: TextStyle(
-                                color: _isPublic
-                                    ? Colors.grey
-                                    : const Color(0xFF424242),
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _isPublic = !_isPublic;
-                                });
-                              },
-                              child: Container(
-                                width: 48,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: _isPublic
-                                      ? const Color(0xFF8B4513)
-                                      : Colors.grey,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Stack(
+                          // Media previews grid
+                          if (_selectedMedia.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: List.generate(_selectedMedia.length, (i) {
+                                final file = _selectedMedia[i];
+                                final isImage = _isImageFile(file);
+
+                                return Stack(
                                   children: [
-                                    Positioned(
-                                      left: _isPublic ? 26 : 2,
-                                      top: 2,
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
                                       child: Container(
-                                        width: 20,
-                                        height: 20,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
+                                        width: 100,
+                                        height: 100,
+                                        color: const Color(0xFF16181C),
+                                        child: isImage &&
+                                                file.path != null &&
+                                                File(file.path!).existsSync()
+                                            ? Image.file(
+                                                File(file.path!),
+                                                fit: BoxFit.cover,
+                                              )
+                                            : const Center(
+                                                child: Icon(
+                                                  Icons.insert_drive_file,
+                                                  color: Colors.white70,
+                                                  size: 32,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () => _removeMedia(i),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.7),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Public',
-                              style: TextStyle(
-                                color: _isPublic
-                                    ? const Color(0xFF8B4513)
-                                    : Colors.grey,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
+                                );
+                              }),
                             ),
                           ],
-                        ),
-                      ],
-                    ),
-
-                    // Privacy Info
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _isPublic ? Colors.blue[50] : Colors.orange[50],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _isPublic
-                              ? Colors.blue[200]!
-                              : Colors.orange[200]!,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            _isPublic ? Icons.public : Icons.lock,
-                            color: _isPublic
-                                ? Colors.blue[600]
-                                : Colors.orange[600],
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _isPublic
-                                  ? 'This post will be visible to everyone in All Posts'
-                                  : 'This post will only be visible to you in My Posts',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _isPublic
-                                    ? Colors.blue[700]
-                                    : Colors.orange[700],
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -808,46 +554,234 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ),
             ),
 
-            // Publish Post Button
-            Container(
-              padding: const EdgeInsets.all(24),
-              child: Container(
-                width: double.infinity,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF8B4513), // Dark brown background
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF8B4513).withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: _publishPost,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Publish Post',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+            // --- BOTTOM SECTION (Audience + Toolbar) ---
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Reply audience row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: GestureDetector(
+                    onTap: _showReplyAudienceSheet,
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.public,
+                          color: Color(0xFF1D9BF0),
+                          size: 15,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _replyAudience,
+                          style: const TextStyle(
+                            color: Color(0xFF1D9BF0),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
+
+                const Divider(
+                  color: Color(0xFF2F3336),
+                  height: 1,
+                  thickness: 0.6,
+                ),
+
+                // Action Icons Row
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      // Media Gallery Icon
+                      _buildToolbarIconButton(
+                        icon: Icons.image_outlined,
+                        onTap: () => _pickMedia(FileType.image),
+                      ),
+                      // Camera Icon
+                      _buildToolbarIconButton(
+                        icon: Icons.camera_alt_outlined,
+                        onTap: () => _pickMedia(FileType.image),
+                      ),
+                      // Poll Icon
+                      _buildToolbarIconButton(
+                        icon: Icons.poll_outlined,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Polls feature coming soon'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
+                      // GIF Badge
+                      GestureDetector(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('GIF selector coming soon'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xFF1D9BF0),
+                              width: 1.5,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'GIF',
+                            style: TextStyle(
+                              color: Color(0xFF1D9BF0),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Tune / Sliders Icon
+                      _buildToolbarIconButton(
+                        icon: Icons.tune_outlined,
+                        onTap: () {},
+                      ),
+                      // Location Pin Icon
+                      _buildToolbarIconButton(
+                        icon: Icons.location_on_outlined,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Location attached'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                      ),
+
+                      const Spacer(),
+
+                      // Vertical divider
+                      Container(
+                        height: 20,
+                        width: 1,
+                        color: const Color(0xFF2F3336),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Circular Character Limit Ring
+                      SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          value: progress,
+                          strokeWidth: 2.2,
+                          backgroundColor: const Color(0xFF2F3336),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _charCount > _maxChars
+                                ? Colors.red
+                                : _charCount > 260
+                                    ? Colors.orange
+                                    : const Color(0xFF1D9BF0),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Blue Circular "+" Button
+                      GestureDetector(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thread adding coming soon'),
+                              duration: Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF1D9BF0),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildToolbarIconButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return IconButton(
+      icon: Icon(icon, color: const Color(0xFF1D9BF0), size: 22),
+      onPressed: onTap,
+      splashRadius: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      constraints: const BoxConstraints(),
+    );
+  }
+
+  void _showDiscardDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF16181C),
+          title: const Text(
+            'Save post as draft?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'You can save this to drafts or discard it.',
+            style: TextStyle(color: Color(0xFF71767B)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              },
+              child: const Text('Discard', style: TextStyle(color: Colors.redAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D9BF0),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _saveDraft();
+              },
+              child: const Text('Save Draft', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

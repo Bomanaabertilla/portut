@@ -1338,72 +1338,88 @@ class _HomeScreenState extends State<HomeScreen> {
     ThemeProvider themeProvider,
   ) {
     return Drawer(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: Colors.black,
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // User Header
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InitialsAvatar(
-                    name: _currentUserName,
-                    size: 52,
-                    fontSize: 20,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      InitialsAvatar(
+                        name: _currentUserName,
+                        size: 48,
+                        fontSize: 18,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFF536471), width: 1.2),
+                        ),
+                        child: const Icon(
+                          Icons.more_vert,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Text(
                     _currentUserName,
-                    style: TextStyle(
-                      fontSize: 18,
+                    style: const TextStyle(
+                      fontSize: 19,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF424242),
+                      color: Colors.white,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
-                    '@${_currentUserId ?? "user"}',
-                    style: TextStyle(
+                    '@${_currentUserId ?? "b_bertilla24"}',
+                    style: const TextStyle(
                       fontSize: 14,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      color: Color(0xFF71767B),
                     ),
                   ),
                   const SizedBox(height: 14),
                   Row(
-                    children: [
+                    children: const [
                       Text(
-                        '142 ',
+                        '82 ',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF424242),
+                          color: Colors.white,
+                          fontSize: 14,
                         ),
                       ),
                       Text(
                         'Following',
                         style: TextStyle(
-                          color: isDark ? Colors.grey[400] : Colors.grey[600],
-                          fontSize: 13,
+                          color: Color(0xFF71767B),
+                          fontSize: 14,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 14),
                       Text(
-                        '89 ',
+                        '11 ',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF424242),
+                          color: Colors.white,
+                          fontSize: 14,
                         ),
                       ),
                       Text(
                         'Followers',
                         style: TextStyle(
-                          color: isDark ? Colors.grey[400] : Colors.grey[600],
-                          fontSize: 13,
+                          color: Color(0xFF71767B),
+                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -1412,22 +1428,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            Divider(
-              height: 1,
-              thickness: 0.8,
-              color: isDark
-                  ? Colors.white12
-                  : Colors.black.withValues(alpha: 0.08),
+            const Divider(
+              height: 16,
+              thickness: 0.5,
+              color: Color(0xFF2F3336),
             ),
 
             // Navigation Links
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: const Text('Profile'),
+                  _buildDrawerItem(
+                    icon: Icons.person_outline,
+                    title: 'Profile',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -1438,9 +1452,34 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.bookmark_outline),
-                    title: const Text('Bookmarks'),
+                  _buildDrawerItem(
+                    icon: Icons.verified_outlined,
+                    title: 'Premium',
+                    trailingBadge: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1D9BF0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        '50% off',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.people_outline,
+                    title: 'Communities',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.bookmark_border,
+                    title: 'Bookmarks',
                     onTap: () async {
                       Navigator.pop(context);
                       await Navigator.push(
@@ -1452,62 +1491,181 @@ class _HomeScreenState extends State<HomeScreen> {
                       _loadBookmarks();
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.article_outlined),
-                    title: const Text('My Posts'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _currentBottomNavIndex = 0;
-                        _currentFeedTabIndex = 1;
-                      });
-                      _loadPosts();
-                    },
+                  _buildDrawerItem(
+                    icon: Icons.list_alt,
+                    title: 'Lists',
+                    onTap: () {},
                   ),
-                  ListTile(
-                    leading: Icon(
-                      themeProvider.isDarkMode
-                          ? Icons.light_mode_outlined
-                          : Icons.dark_mode_outlined,
-                    ),
-                    title: Text(
-                      themeProvider.isDarkMode ? 'Light Mode' : 'Dark Mode',
-                    ),
-                    onTap: () => themeProvider.toggleTheme(),
+                  _buildDrawerItem(
+                    icon: Icons.graphic_eq,
+                    title: 'Spaces',
+                    onTap: () {},
+                  ),
+                  _buildDrawerItem(
+                    icon: Icons.rocket_launch_outlined,
+                    title: 'Creator Studio',
+                    onTap: () {},
                   ),
                 ],
               ),
             ),
 
-            Divider(
-              height: 1,
-              thickness: 0.8,
-              color: isDark
-                  ? Colors.white12
-                  : Colors.black.withValues(alpha: 0.08),
-            ),
-
-            // Bottom Logout
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Log out',
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.w600,
+            // Bottom Accounts Section (matching screenshot)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xFF2F3336), width: 0.5),
                 ),
               ),
-              onTap: () async {
-                Navigator.pop(context);
-                await _authService.logout();
-                if (mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
-              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 32,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF536471),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Accounts',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 21,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      InitialsAvatar(
+                        name: _currentUserName,
+                        size: 38,
+                        fontSize: 14,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _currentUserName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '@${_currentUserId ?? "b_bertilla24"}',
+                              style: const TextStyle(
+                                color: Color(0xFF71767B),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Color(0xFF00BA7C),
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/signup');
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF536471)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      child: const Text(
+                        'Create a new account',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushNamed(context, '/login');
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF536471)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      child: const Text(
+                        'Add an existing account',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    Widget? trailingBadge,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      dense: true,
+      visualDensity: const VisualDensity(vertical: 0.5),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      leading: Icon(icon, color: Colors.white, size: 24),
+      title: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 17.5,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (trailingBadge != null) ...[
+            const SizedBox(width: 8),
+            trailingBadge,
+          ],
+        ],
+      ),
+      onTap: onTap,
     );
   }
 
