@@ -7,9 +7,12 @@ class Post {
   final String timestamp;
   final int likes;
   final int comments;
+  final int reposts;
+  final int views;
   final bool isPublic;
   final String authorId;
   final List<String> likedUsers;
+  final List<String> repostedUsers;
   final List<String> commentsList;
   final List<String> mediaUrls;
 
@@ -22,9 +25,12 @@ class Post {
     required this.timestamp,
     required this.likes,
     required this.comments,
+    this.reposts = 0,
+    this.views = 0,
     required this.isPublic,
     required this.authorId,
     this.likedUsers = const [],
+    this.repostedUsers = const [],
     this.commentsList = const [],
     this.mediaUrls = const [],
   });
@@ -42,11 +48,14 @@ class Post {
       timestamp: map['timestamp'] ?? DateTime.now().toIso8601String(),
       likes: (map['likes'] as num?)?.toInt() ?? 0,
       comments: (map['comments'] as List?)?.length ?? 0,
+      reposts: (map['reposts'] as num?)?.toInt() ?? 0,
+      views: (map['views'] as num?)?.toInt() ?? 0,
       isPublic: map['visibility'] == 'Public' ||
           map['visibility'] == 'public' ||
           map['isPublic'] == true,
       authorId: authorId,
       likedUsers: List<String>.from(map['likedUsers'] ?? []),
+      repostedUsers: List<String>.from(map['repostedUsers'] ?? []),
       commentsList: List<String>.from(map['comments'] ?? []),
       mediaUrls: List<String>.from(map['mediaUrls'] ?? map['media'] ?? []),
     );
@@ -64,9 +73,12 @@ class Post {
       'timestamp': timestamp,
       'likes': likes,
       'comments': commentsList,
+      'reposts': reposts,
+      'views': views,
       'visibility': isPublic ? 'Public' : 'Private',
       'isPublic': isPublic,
       'likedUsers': likedUsers,
+      'repostedUsers': repostedUsers,
       'authorId': authorId,
       'mediaUrls': mediaUrls,
     };
@@ -82,9 +94,12 @@ class Post {
     String? timestamp,
     int? likes,
     int? comments,
+    int? reposts,
+    int? views,
     bool? isPublic,
     String? authorId,
     List<String>? likedUsers,
+    List<String>? repostedUsers,
     List<String>? commentsList,
     List<String>? mediaUrls,
   }) {
@@ -97,9 +112,12 @@ class Post {
       timestamp: timestamp ?? this.timestamp,
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
+      reposts: reposts ?? this.reposts,
+      views: views ?? this.views,
       isPublic: isPublic ?? this.isPublic,
       authorId: authorId ?? this.authorId,
       likedUsers: likedUsers ?? this.likedUsers,
+      repostedUsers: repostedUsers ?? this.repostedUsers,
       commentsList: commentsList ?? this.commentsList,
       mediaUrls: mediaUrls ?? this.mediaUrls,
     );

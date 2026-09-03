@@ -1,6 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
+
 import 'create_post_screen.dart';
 import 'profile_screen.dart';
 import 'blog_post_screen.dart';
@@ -9,8 +13,9 @@ import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/initials_avatar.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
+import '../widgets/search_view.dart';
+import '../widgets/notifications_view.dart';
+import '../widgets/messages_view.dart';
 import '../models/post.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -21,11 +26,20 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _showAllPosts = true; // Toggle between All Posts and My Posts
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  // Bottom Navigation: 0=Home, 1=Search, 2=Explore, 3=Notifications, 4=Messages
+  int _currentBottomNavIndex = 0;
+
+  // Home Feed Tabs: 0="For you", 1="Following"
+  int _currentFeedTabIndex = 0;
+
   String? _currentUserId;
+  String _currentUserName = 'User';
   List<Post> _posts = [];
   bool _isLoading = true;
   Set<String> _bookmarkedPostIds = {};
+  bool _showNewPostsPill = false;
 
   final PostService _postService = PostService();
   final AuthService _authService = AuthService();
@@ -45,12 +59,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _purgeSamplePosts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Purge known dummy user posts
       await prefs.remove('user_posts:mike_chen');
       await prefs.remove('user_posts:emma_davis');
 
-      // Purge dummy post IDs ('1', '2', '3') from any user's post list
-      final keys = prefs.getKeys().where((k) => k.startsWith('user_posts:')).toList();
+      final keys = prefs
+          .getKeys()
+          .where((k) => k.startsWith('user_posts:'))
+          .toList();
       for (final key in keys) {
         final jsonStr = prefs.getString(key);
         if (jsonStr != null) {
@@ -80,6 +95,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _currentUserId = user?.username ?? 'current_user';
+          _currentUserName = (user != null && user.displayName.isNotEmpty)
+              ? user.displayName
+              : (_currentUserId ?? 'User');
         });
         await _loadPosts();
         await _loadBookmarks();
@@ -89,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _currentUserId = 'current_user';
+          _currentUserName = 'User';
         });
         await _loadPosts();
         await _loadBookmarks();
@@ -132,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              isBookmarked ? 'Bookmark removed' : 'Post bookmarked!',
+              isBookmarked ? 'Removed from Bookmarks' : 'Saved to Bookmarks',
             ),
             backgroundColor: const Color(0xFF8B4513),
             duration: const Duration(seconds: 1),
@@ -152,11 +171,11 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       List<Map<String, dynamic>> postsData;
 
-      if (_showAllPosts) {
-        // Load all public posts
+      if (_currentFeedTabIndex == 0) {
+        // "For you": All public posts
         postsData = await _postService.getAllPosts();
       } else {
-        // Load current user's posts (both public and private)
+        // "Following": Posts by current user or followed users
         if (_currentUserId != null) {
           postsData = await _postService.getPosts(_currentUserId!);
         } else {
@@ -164,14 +183,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
-      // Convert to Post objects
       final List<Post> posts = [];
       for (final postData in postsData) {
         final authorId = postData['authorId'] ?? _currentUserId ?? 'unknown';
         posts.add(Post.fromMap(postData, authorId));
       }
 
-      // Sort by timestamp (newest first)
       posts.sort((a, b) {
         final aTime = DateTime.tryParse(a.timestamp) ?? DateTime.now();
         final bTime = DateTime.tryParse(b.timestamp) ?? DateTime.now();
@@ -194,92 +211,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Clear all posts (for testing)
-  Future<void> _clearAllPosts() async {
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    final postKeys = keys
-        .where((key) => key.startsWith('user_posts:'))
-        .toList();
-
-    for (final key in postKeys) {
-      await prefs.remove(key);
-    }
-    if (_currentUserId != null) {
-      await prefs.remove('bookmarks_$_currentUserId');
-      _bookmarkedPostIds.clear();
-    }
-
-    print('Cleared all posts.');
-    await _loadPosts();
-  }
-
-  // Get filtered posts based on current view
-  List<Post> get _filteredPosts {
-    List<Post> filtered;
-
-    if (_showAllPosts) {
-      // Show only public posts in All Posts
-      filtered = _posts.where((post) => post.isPublic).toList();
-      print(
-        'All Posts tab: ${filtered.length} public posts out of ${_posts.length} total posts',
-      );
-    } else {
-      // Show all posts by current user in My Posts
-      filtered = _posts
-          .where((post) => post.authorId == _currentUserId)
-          .toList();
-      print(
-        'My Posts tab: ${filtered.length} posts for user $_currentUserId out of ${_posts.length} total posts',
-      );
-    }
-
-    return filtered;
-  }
-
-  // Add a new post to the list
-  Future<void> _addNewPost(Post newPost) async {
-    try {
-      // Save to service
-      await _postService.savePost(
-        _currentUserId ?? newPost.authorId,
-        newPost.toMap(),
-      );
-
-      if (mounted) {
-        setState(() {
-          _posts.removeWhere((p) => p.id == newPost.id);
-          _posts.insert(0, newPost);
-        });
-      }
-
-      print(
-        'New post saved to service: "${newPost.title}" by ${newPost.authorName}',
-      );
-
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Post "${newPost.title}" created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      print('Error adding new post: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error saving post'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  // Handle like/unlike functionality
   Future<void> _toggleLike(Post post) async {
     if (_currentUserId == null) return;
 
@@ -298,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
         likedUsers: updatedLikedUsers,
       );
 
-      // Update in service
       await _postService.updatePostStats(
         post.authorId,
         post.id,
@@ -306,7 +236,6 @@ class _HomeScreenState extends State<HomeScreen> {
         likedUsers: updatedPost.likedUsers,
       );
 
-      // Update local list
       setState(() {
         final index = _posts.indexWhere((p) => p.id == post.id);
         if (index != -1) {
@@ -315,611 +244,1026 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     } catch (e) {
       print('Error toggling like: $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error updating like')));
     }
   }
 
-  // Handle comment functionality
-  Future<void> _addComment(Post post) async {
+  Future<void> _toggleRepost(Post post) async {
     if (_currentUserId == null) return;
 
-    final TextEditingController commentController = TextEditingController();
+    try {
+      final isReposted = post.repostedUsers.contains(_currentUserId);
+      final updatedRepostedUsers = List<String>.from(post.repostedUsers);
 
-    final result = await showDialog<String>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add Comment'),
-          content: TextField(
-            controller: commentController,
-            decoration: const InputDecoration(
-              hintText: 'Write your comment...',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(commentController.text),
-              child: const Text('Comment'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != null && result.trim().isNotEmpty) {
-      try {
-        final updatedComments = List<String>.from(post.commentsList);
-        final user = await _authService.getCurrentUser();
-        final username = user?.username ?? 'Anonymous';
-        final timestamp = DateTime.now().toIso8601String();
-        updatedComments.add('$username: ${result.trim()} ($timestamp)');
-
-        final updatedPost = post.copyWith(
-          comments: updatedComments.length,
-          commentsList: updatedComments,
-        );
-
-        // Update in service
-        await _postService.updatePostStats(
-          post.authorId,
-          post.id,
-          comments: updatedPost.commentsList,
-        );
-
-        // Update local list
-        setState(() {
-          final index = _posts.indexWhere((p) => p.id == post.id);
-          if (index != -1) {
-            _posts[index] = updatedPost;
-          }
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Comment added successfully!')),
-        );
-      } catch (e) {
-        print('Error adding comment: $e');
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error adding comment')));
+      if (isReposted) {
+        updatedRepostedUsers.remove(_currentUserId);
+      } else {
+        updatedRepostedUsers.add(_currentUserId!);
       }
+
+      final updatedPost = post.copyWith(
+        reposts: updatedRepostedUsers.length,
+        repostedUsers: updatedRepostedUsers,
+      );
+
+      setState(() {
+        final index = _posts.indexWhere((p) => p.id == post.id);
+        if (index != -1) {
+          _posts[index] = updatedPost;
+        }
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isReposted ? 'Undo repost' : 'Reposted to your feed'),
+            backgroundColor: const Color(0xFF8B4513),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error toggling repost: $e');
     }
   }
 
-  // Update an existing post in the list
   void _updatePost(Post updatedPost) {
     setState(() {
-      final index = _posts.indexWhere((post) => post.id == updatedPost.id);
+      final index = _posts.indexWhere((p) => p.id == updatedPost.id);
       if (index != -1) {
         _posts[index] = updatedPost;
       }
     });
   }
 
-  // Debug method to check current state
-  void _debugCurrentState() {
-    print('=== DEBUG CURRENT STATE ===');
-    print('Current User ID: $_currentUserId');
-    print('Show All Posts: $_showAllPosts');
-    print('Total Posts in Memory: ${_posts.length}');
-    print('Filtered Posts: ${_filteredPosts.length}');
-
-    for (int i = 0; i < _posts.length; i++) {
-      final post = _posts[i];
-      print(
-        'Post $i: "${post.title}" by ${post.authorName} (${post.authorId}) - Public: ${post.isPublic}',
+  Future<void> _addNewPost(Post newPost) async {
+    try {
+      await _postService.savePost(
+        _currentUserId ?? newPost.authorId,
+        newPost.toMap(),
       );
-    }
 
-    print('Filtered Posts:');
-    for (int i = 0; i < _filteredPosts.length; i++) {
-      final post = _filteredPosts[i];
-      print(
-        '  $i: "${post.title}" by ${post.authorName} (${post.authorId}) - Public: ${post.isPublic}',
-      );
+      if (mounted) {
+        setState(() {
+          _posts.insert(0, newPost);
+          _showNewPostsPill = true;
+        });
+      }
+    } catch (e) {
+      print('Error adding new post: $e');
     }
-    print('=== END DEBUG ===');
+  }
+
+  void _showPostOptions(Post post) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.bookmark_outline),
+                  title: Text(
+                    _bookmarkedPostIds.contains(post.id)
+                        ? 'Remove Bookmark'
+                        : 'Bookmark',
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _toggleBookmark(post);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.share_outlined),
+                  title: const Text('Share publication'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    SharePlus.instance.share(
+                      ShareParams(
+                        text: '${post.title}\n\n${post.description}',
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.link),
+                  title: const Text('Copy link to post'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Link copied to clipboard'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                ),
+                if (post.authorId == _currentUserId)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
+                    title: const Text(
+                      'Delete post',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(ctx);
+                      await _postService.deletePost(post.authorId, post.id);
+                      _loadPosts();
+                    },
+                  ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
     final theme = Theme.of(context);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = theme.colorScheme.primary;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: theme.scaffoldBackgroundColor,
+      drawer: _buildSideDrawer(context, isDark, primaryColor, themeProvider),
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Container(
-              color: theme.appBarTheme.backgroundColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Row(
-                children: [
-                  // App Title
-                  Text('PorTuT', style: theme.textTheme.headlineLarge),
-                  const Spacer(),
-                  // Theme Toggle Button
-                  GestureDetector(
-                    onTap: () => themeProvider.toggleTheme(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        themeProvider.isDarkMode
-                            ? Icons.light_mode
-                            : Icons.dark_mode,
-                        color: theme.colorScheme.primary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Refresh Button
-                  GestureDetector(
-                    onTap: _loadPosts,
-                    onLongPress: _clearAllPosts,
-                    onDoubleTap: _debugCurrentState,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.refresh,
-                        color: theme.colorScheme.primary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Bookmark Icon
-                  GestureDetector(
-                    onTap: () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BookmarksScreen(),
-                        ),
-                      );
-                      _loadBookmarks();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.bookmark_border,
-                        color: theme.colorScheme.primary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // User Profile Picture
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ProfileScreen(),
-                        ),
-                      );
-                    },
-                    child: InitialsAvatar(
-                      name: _currentUserId ?? 'User',
-                      size: 40,
-                      fontSize: 16,
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(
-                          alpha: 0.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            // Top App Bar (X Style)
+            _buildTopAppBar(context, isDark, primaryColor, themeProvider),
+
+            // Top Feed Tabs (only on Home tab)
+            if (_currentBottomNavIndex == 0)
+              _buildFeedTabs(context, isDark, primaryColor),
+
+            Divider(
+              height: 1,
+              thickness: 0.8,
+              color: isDark
+                  ? Colors.white12
+                  : Colors.black.withValues(alpha: 0.08),
             ),
 
-            // Navigation Tabs
-            Container(
-              color: theme.appBarTheme.backgroundColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  // All Posts Button
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _showAllPosts = true;
-                        });
-                        _loadPosts();
-                      },
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _showAllPosts
-                              ? theme.colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.primary,
-                            width: 1,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'All Posts',
-                            style: TextStyle(
-                              color: _showAllPosts
-                                  ? theme.colorScheme.onPrimary
-                                  : theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // My Posts Button
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _showAllPosts = false;
-                        });
-                        _loadPosts();
-                      },
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: !_showAllPosts
-                              ? theme.colorScheme.primary
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: theme.colorScheme.primary,
-                            width: 1,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'My Posts',
-                            style: TextStyle(
-                              color: !_showAllPosts
-                                  ? theme.colorScheme.onPrimary
-                                  : theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Posts List
+            // Active Tab Content
             Expanded(
-              child: _isLoading
-                  ? Center(
-                      child: CircularProgressIndicator(
-                        color: theme.colorScheme.primary,
-                      ),
-                    )
-                  : _filteredPosts.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _showAllPosts ? Icons.public : Icons.person,
-                            size: 64,
-                            color: theme.colorScheme.onBackground.withValues(
-                              alpha: 0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _showAllPosts
-                                ? 'No public posts available'
-                                : 'No posts yet',
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              color: theme.colorScheme.onBackground.withValues(
-                                alpha: 0.6,
-                              ),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            child: Text(
-                              _showAllPosts
-                                  ? 'Public posts will appear here'
-                                  : 'Create your first post!',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onBackground
-                                    .withValues(alpha: 0.5),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadPosts,
-                      color: theme.colorScheme.primary,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filteredPosts.length,
-                        itemBuilder: (context, index) {
-                          return _buildPostCard(_filteredPosts[index]);
-                        },
-                      ),
-                    ),
+              child: _buildCurrentTabBody(context, isDark, primaryColor),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreatePostScreen()),
-          );
-          // Handle the result from create post screen
-          if (result != null && result is Post) {
-            print('Received new post from create screen: ${result.title}');
-            // Switch to "All Posts" to show the new post on the All posts screen
-            setState(() {
-              _showAllPosts = true;
-            });
-            await _addNewPost(result);
-            // Force refresh to ensure posts are loaded correctly
-            await _loadPosts();
-          }
-        },
-        backgroundColor: theme.colorScheme.primary,
-        foregroundColor: theme.colorScheme.onPrimary,
-        child: const Icon(Icons.add),
+
+      // X-Style Floating Action Button
+      floatingActionButton: _buildFloatingActionButton(primaryColor),
+
+      // X-Style Bottom Navigation Bar
+      bottomNavigationBar: _buildBottomNavigationBar(
+        context,
+        isDark,
+        primaryColor,
       ),
     );
   }
 
-  Widget _buildPostCard(Post post) {
-    final isLiked =
-        _currentUserId != null && post.likedUsers.contains(_currentUserId);
-    final theme = Theme.of(context);
+  // -------------------------------------------------------------
+  // TOP APP BAR (X Style)
+  // -------------------------------------------------------------
+  Widget _buildTopAppBar(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+    ThemeProvider themeProvider,
+  ) {
+    return Container(
+      color: Theme.of(context).appBarTheme.backgroundColor,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Left: User Avatar (opens drawer)
+          GestureDetector(
+            onTap: () => _scaffoldKey.currentState?.openDrawer(),
+            child: InitialsAvatar(
+              name: _currentUserName,
+              size: 34,
+              fontSize: 13,
+            ),
+          ),
 
-    return GestureDetector(
-      onTap: () async {
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => BlogPostScreen(post: post)),
+          const Spacer(),
+
+          // Center: Stylized Brand Logo (X Style)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'PorTuT',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                  color: isDark ? Colors.white : const Color(0xFF424242),
+                ),
+              ),
+            ],
+          ),
+
+          const Spacer(),
+
+          // Right: Upgrade Button (matching X screenshot)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: primaryColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: primaryColor.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified, size: 14, color: primaryColor),
+                const SizedBox(width: 4),
+                Text(
+                  'Upgrade',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // FEED TABS ("For you" / "Following")
+  // -------------------------------------------------------------
+  Widget _buildFeedTabs(BuildContext context, bool isDark, Color primaryColor) {
+    return Container(
+      color: Theme.of(context).appBarTheme.backgroundColor,
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_currentFeedTabIndex != 0) {
+                  setState(() => _currentFeedTabIndex = 0);
+                  _loadPosts();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _currentFeedTabIndex == 0
+                          ? primaryColor
+                          : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'For you',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: _currentFeedTabIndex == 0
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    color: _currentFeedTabIndex == 0
+                        ? (isDark ? Colors.white : const Color(0xFF424242))
+                        : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (_currentFeedTabIndex != 1) {
+                  setState(() => _currentFeedTabIndex = 1);
+                  _loadPosts();
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: _currentFeedTabIndex == 1
+                          ? primaryColor
+                          : Colors.transparent,
+                      width: 2.5,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'Following',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: _currentFeedTabIndex == 1
+                        ? FontWeight.bold
+                        : FontWeight.w500,
+                    color: _currentFeedTabIndex == 1
+                        ? (isDark ? Colors.white : const Color(0xFF424242))
+                        : Colors.grey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // CURRENT TAB BODY
+  // -------------------------------------------------------------
+  Widget _buildCurrentTabBody(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+  ) {
+    switch (_currentBottomNavIndex) {
+      case 1:
+        // Search View
+        return SearchView(
+          posts: _posts,
+          onPostTap: (post) => _openBlogPost(post),
         );
-        // Handle the result from blog post screen
-        if (result != null && result is Post) {
-          _updatePost(result);
-        }
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.onBackground.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      case 2:
+        // Explore / Discover View
+        return _buildExploreView(context, isDark, primaryColor);
+      case 3:
+        // Notifications View
+        return const NotificationsView();
+      case 4:
+        // Messages View
+        return const MessagesView();
+      default:
+        // Home Feed
+        return _buildHomeFeed(context, isDark, primaryColor);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // HOME FEED WITH POSTS (X Tweet Layout)
+  // -------------------------------------------------------------
+  Widget _buildHomeFeed(BuildContext context, bool isDark, Color primaryColor) {
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator(color: primaryColor));
+    }
+
+    if (_posts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _currentFeedTabIndex == 0 ? Icons.public : Icons.people_outline,
+              size: 56,
+              color: isDark ? Colors.white24 : Colors.black26,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              _currentFeedTabIndex == 0
+                  ? 'No posts in feed'
+                  : 'No posts from following yet',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : const Color(0xFF424242),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tap the + button to compose a post',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.grey[400] : Colors.grey[600],
+              ),
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Post Title and Privacy Indicator
-              Row(
+      );
+    }
+
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadPosts,
+          color: primaryColor,
+          child: ListView.separated(
+            padding: const EdgeInsets.only(bottom: 80),
+            itemCount: _posts.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 1,
+              thickness: 0.8,
+              color: isDark
+                  ? Colors.white12
+                  : Colors.black.withValues(alpha: 0.08),
+            ),
+            itemBuilder: (context, index) {
+              return _buildTweetCard(_posts[index], isDark, primaryColor);
+            },
+          ),
+        ),
+
+        // Floating New Posts Pill (matching screenshot)
+        if (_showNewPostsPill)
+          Positioned(
+            top: 12,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: GestureDetector(
+                onTap: () {
+                  setState(() => _showNewPostsPill = false);
+                  _loadPosts();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.arrow_upward, size: 16, color: Colors.white),
+                      SizedBox(width: 6),
+                      Text(
+                        'New posts',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------
+  // TWEET POST CARD (X Layout)
+  // -------------------------------------------------------------
+  Widget _buildTweetCard(Post post, bool isDark, Color primaryColor) {
+    final isLiked =
+        _currentUserId != null && post.likedUsers.contains(_currentUserId);
+    final isReposted =
+        _currentUserId != null && post.repostedUsers.contains(_currentUserId);
+    final isBookmarked = _bookmarkedPostIds.contains(post.id);
+
+    return InkWell(
+      onTap: () => _openBlogPost(post),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left: Author Avatar
+            InitialsAvatar(name: post.authorName, size: 40, fontSize: 15),
+            const SizedBox(width: 12),
+
+            // Right: Post content & actions
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
+                  // Header Row (Name, Verified badge, Handle, Time, More menu)
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          post.authorName,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF424242),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.verified,
+                        size: 14,
+                        color: Colors.blueAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          '@${post.authorId}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        ' · ${_formatTimestamp(post.timestamp)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => _showPostOptions(post),
+                        child: Icon(
+                          Icons.more_horiz,
+                          size: 18,
+                          color: isDark ? Colors.grey[500] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Post Title
+                  if (post.title.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
                       post.title,
-                      style: theme.textTheme.headlineMedium,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : const Color(0xFF424242),
+                      ),
+                    ),
+                  ],
+
+                  // Post Description
+                  const SizedBox(height: 4),
+                  Text(
+                    post.description,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      color: isDark
+                          ? Colors.grey[200]
+                          : const Color(0xFF222222),
                     ),
                   ),
-                  if (!post.isPublic)
-                    Container(
-                      margin: const EdgeInsets.only(left: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
+
+                  // Media Preview (if post has attachments)
+                  if (post.mediaUrls.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _buildPostMediaPreview(
+                      post.mediaUrls,
+                      isDark,
+                      primaryColor,
+                    ),
+                  ],
+
+                  const SizedBox(height: 12),
+
+                  // Interaction Row (Replies, Reposts, Likes, Views, Bookmarks, Share)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Reply
+                      _buildActionItem(
+                        icon: Icons.chat_bubble_outline,
+                        count: post.comments,
+                        color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
+                        onTap: () => _openBlogPost(post),
                       ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.onBackground.withValues(
-                          alpha: 0.1,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
+
+                      // Repost
+                      _buildActionItem(
+                        icon: Icons.repeat,
+                        count: post.reposts,
+                        color: isReposted
+                            ? Colors.green
+                            : (isDark ? Colors.grey[400]! : Colors.grey[600]!),
+                        onTap: () => _toggleRepost(post),
                       ),
-                      child: Row(
+
+                      // Like
+                      _buildActionItem(
+                        icon: isLiked ? Icons.favorite : Icons.favorite_border,
+                        count: post.likes,
+                        color: isLiked
+                            ? Colors.red
+                            : (isDark ? Colors.grey[400]! : Colors.grey[600]!),
+                        onTap: () => _toggleLike(post),
+                      ),
+
+                      // Views
+                      _buildActionItem(
+                        icon: Icons.bar_chart,
+                        count: post.views > 0 ? post.views : 340,
+                        color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
+                        onTap: null,
+                      ),
+
+                      // Bookmark & Share
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.lock,
-                            size: 12,
-                            color: theme.colorScheme.onBackground.withValues(
-                              alpha: 0.6,
+                          GestureDetector(
+                            onTap: () => _toggleBookmark(post),
+                            child: Icon(
+                              isBookmarked
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                              size: 18,
+                              color: isBookmarked
+                                  ? primaryColor
+                                  : (isDark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600]),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Private',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: theme.colorScheme.onBackground.withValues(
-                                alpha: 0.6,
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () => SharePlus.instance.share(
+                              ShareParams(
+                                text: '${post.title}\n\n${post.description}',
                               ),
-                              fontWeight: FontWeight.w500,
+                            ),
+                            child: Icon(
+                              Icons.share_outlined,
+                              size: 18,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
                             ),
                           ),
                         ],
                       ),
-                    ),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // Post Content Snippet
-              Text(
-                post.description,
-                style: theme.textTheme.bodyMedium,
-                maxLines: 3,
+  Widget _buildActionItem({
+    required IconData icon,
+    required int count,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 17, color: color),
+          if (count > 0) ...[
+            const SizedBox(width: 4),
+            Text(
+              count > 999
+                  ? '${(count / 1000).toStringAsFixed(1)}K'
+                  : count.toString(),
+              style: TextStyle(fontSize: 12, color: color),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostMediaPreview(
+    List<String> mediaUrls,
+    bool isDark,
+    Color primaryColor,
+  ) {
+    final first = mediaUrls.first;
+    final isPdf = first.toLowerCase().endsWith('.pdf');
+
+    if (isPdf) {
+      final name = first.split(RegExp(r'[\\/]')).last;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEBE6DC),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.picture_as_pdf, color: Colors.redAccent, size: 20),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                name,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : const Color(0xFF424242),
+                ),
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 16),
+            ),
+          ],
+        ),
+      );
+    }
 
-              // Author Information
-              Row(
-                children: [
-                  // Author Initials Avatar
-                  InitialsAvatar(
-                    name: post.authorName,
-                    size: 32,
-                    fontSize: 12,
-                  ),
-                  const SizedBox(width: 8),
-                  // Author Name
-                  Expanded(
-                    child: Text(
-                      post.authorName,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Dot separator
-                  Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onBackground,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Timestamp
-                  Flexible(
-                    child: Text(
-                      _formatTimestamp(post.timestamp),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onBackground.withValues(
-                          alpha: 0.6,
-                        ),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+    // Image preview
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2C) : const Color(0xFFEBE6DC),
+        ),
+        child: first.startsWith('http')
+            ? Image.network(
+                first,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.image, size: 40, color: Colors.grey),
+              )
+            : File(first).existsSync()
+            ? Image.file(
+                File(first),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.image, size: 40, color: Colors.grey),
+              )
+            : const Icon(Icons.image, size: 40, color: Colors.grey),
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // EXPLORE / GROK TAB (Index 2)
+  // -------------------------------------------------------------
+  Widget _buildExploreView(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          'Explore PorTuT',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF424242),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Featured Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'WHAT\'S HAPPENING',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  color: Colors.white70,
+                ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 6),
+              Text(
+                'Explore the latest developer tutorials, ideas, and stories',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
 
-              // Interaction Icons
-              Row(
-                children: [
-                  // Likes
-                  GestureDetector(
-                    onTap: () => _toggleLike(post),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked
-                              ? Colors.red
-                              : theme.colorScheme.onBackground,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          post.likes.toString(),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: isLiked
-                                ? Colors.red
-                                : theme.colorScheme.onBackground,
-                            fontWeight: isLiked
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ],
+        const SizedBox(height: 20),
+        Text(
+          'Popular Categories',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF424242),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children:
+              [
+                '📱 Flutter',
+                '⚛️ React',
+                '🚀 Startups',
+                '🎨 UI/UX',
+                '🤖 AI & ML',
+                '☁️ Cloud',
+                '💼 Careers',
+              ].map((tag) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF2C2C2C)
+                        : const Color(0xFFEBE6DC),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    tag,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF424242),
                     ),
                   ),
-                  const SizedBox(width: 24),
-                  // Comments
-                  GestureDetector(
-                    onTap: () => _addComment(post),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          color: theme.colorScheme.onBackground,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          post.comments.toString(),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: theme.colorScheme.onBackground,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  // Bookmark
-                  GestureDetector(
-                    onTap: () => _toggleBookmark(post),
-                    child: Icon(
-                      _bookmarkedPostIds.contains(post.id)
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      color: _bookmarkedPostIds.contains(post.id)
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onBackground,
-                      size: 20,
-                    ),
-                  ),
-                ],
+                );
+              }).toList(),
+        ),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------------
+  // FLOATING ACTION BUTTON
+  // -------------------------------------------------------------
+  Widget _buildFloatingActionButton(Color primaryColor) {
+    return FloatingActionButton(
+      onPressed: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CreatePostScreen()),
+        );
+        if (result != null && result is Post) {
+          setState(() {
+            _currentBottomNavIndex = 0;
+            _currentFeedTabIndex = 0;
+          });
+          await _addNewPost(result);
+          await _loadPosts();
+        }
+      },
+      backgroundColor: primaryColor,
+      foregroundColor: Colors.white,
+      elevation: 4,
+      shape: const CircleBorder(),
+      child: const Icon(Icons.add, size: 28),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // BOTTOM NAVIGATION BAR (5 Tabs matching X)
+  // -------------------------------------------------------------
+  Widget _buildBottomNavigationBar(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).appBarTheme.backgroundColor,
+        border: Border(
+          top: BorderSide(
+            color: isDark
+                ? Colors.white12
+                : Colors.black.withValues(alpha: 0.08),
+            width: 0.8,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 54,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // 0: Home
+              _buildBottomNavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                inactiveIcon: Icons.home_outlined,
+                primaryColor: primaryColor,
+                isDark: isDark,
+              ),
+
+              // 1: Search
+              _buildBottomNavItem(
+                index: 1,
+                icon: Icons.search,
+                inactiveIcon: Icons.search,
+                primaryColor: primaryColor,
+                isDark: isDark,
+              ),
+
+              // 2: Grok / Explore
+              _buildBottomNavItem(
+                index: 2,
+                icon: Icons.explore,
+                inactiveIcon: Icons.explore_outlined,
+                primaryColor: primaryColor,
+                isDark: isDark,
+              ),
+
+              // 3: Notifications (with unread badge)
+              _buildBottomNavItem(
+                index: 3,
+                icon: Icons.notifications,
+                inactiveIcon: Icons.notifications_none,
+                primaryColor: primaryColor,
+                isDark: isDark,
+                badgeCount: 1,
+              ),
+
+              // 4: Messages (with unread badge)
+              _buildBottomNavItem(
+                index: 4,
+                icon: Icons.mail,
+                inactiveIcon: Icons.mail_outline,
+                primaryColor: primaryColor,
+                isDark: isDark,
+                badgeCount: 1,
               ),
             ],
           ),
@@ -928,17 +1272,266 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildBottomNavItem({
+    required int index,
+    required IconData icon,
+    required IconData inactiveIcon,
+    required Color primaryColor,
+    required bool isDark,
+    int? badgeCount,
+  }) {
+    final isSelected = _currentBottomNavIndex == index;
+    final iconColor = isSelected
+        ? primaryColor
+        : (isDark ? Colors.grey[400] : const Color(0xFF666666));
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _currentBottomNavIndex = index;
+        });
+      },
+      borderRadius: BorderRadius.circular(24),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Icon(
+              isSelected ? icon : inactiveIcon,
+              size: 26,
+              color: iconColor,
+            ),
+          ),
+          if (badgeCount != null && badgeCount > 0)
+            Positioned(
+              right: 12,
+              top: 4,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(
+                  color: Colors.blueAccent,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  badgeCount.toString(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------
+  // SIDE DRAWER (X Style)
+  // -------------------------------------------------------------
+  Widget _buildSideDrawer(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+    ThemeProvider themeProvider,
+  ) {
+    return Drawer(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  InitialsAvatar(
+                    name: _currentUserName,
+                    size: 52,
+                    fontSize: 20,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _currentUserName,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF424242),
+                    ),
+                  ),
+                  Text(
+                    '@${_currentUserId ?? "user"}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Text(
+                        '142 ',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF424242),
+                        ),
+                      ),
+                      Text(
+                        'Following',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        '89 ',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF424242),
+                        ),
+                      ),
+                      Text(
+                        'Followers',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            Divider(
+              height: 1,
+              thickness: 0.8,
+              color: isDark
+                  ? Colors.white12
+                  : Colors.black.withValues(alpha: 0.08),
+            ),
+
+            // Navigation Links
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.person_outline),
+                    title: const Text('Profile'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.bookmark_outline),
+                    title: const Text('Bookmarks'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const BookmarksScreen(),
+                        ),
+                      );
+                      _loadBookmarks();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.article_outlined),
+                    title: const Text('My Posts'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() {
+                        _currentBottomNavIndex = 0;
+                        _currentFeedTabIndex = 1;
+                      });
+                      _loadPosts();
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      themeProvider.isDarkMode
+                          ? Icons.light_mode_outlined
+                          : Icons.dark_mode_outlined,
+                    ),
+                    title: Text(
+                      themeProvider.isDarkMode ? 'Light Mode' : 'Dark Mode',
+                    ),
+                    onTap: () => themeProvider.toggleTheme(),
+                  ),
+                ],
+              ),
+            ),
+
+            Divider(
+              height: 1,
+              thickness: 0.8,
+              color: isDark
+                  ? Colors.white12
+                  : Colors.black.withValues(alpha: 0.08),
+            ),
+
+            // Bottom Logout
+            ListTile(
+              leading: const Icon(Icons.logout, color: Colors.redAccent),
+              title: const Text(
+                'Log out',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                await _authService.logout();
+                if (mounted) {
+                  Navigator.pushReplacementNamed(context, '/login');
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openBlogPost(Post post) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => BlogPostScreen(post: post)),
+    );
+    if (result != null && result is Post) {
+      _updatePost(result);
+    }
+  }
+
   String _formatTimestamp(String timestamp) {
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
       final diff = now.difference(dateTime);
 
-      if (diff.inMinutes < 1) return 'Just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-      if (diff.inHours < 24) return '${diff.inHours}h ago';
-      if (diff.inDays < 7) return '${diff.inDays}d ago';
-      return '${(diff.inDays / 7).floor()}w ago';
+      if (diff.inMinutes < 1) return 'now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+      if (diff.inHours < 24) return '${diff.inHours}h';
+      if (diff.inDays < 7) return '${diff.inDays}d';
+      return '${(diff.inDays / 7).floor()}w';
     } catch (e) {
       return timestamp;
     }

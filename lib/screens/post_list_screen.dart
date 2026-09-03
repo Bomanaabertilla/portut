@@ -249,7 +249,7 @@ class _PostListScreenState extends State<PostListScreen> {
     return GestureDetector(
       onTap: () {
         final content = '${post.author} shared:\n\n${post.content}';
-        Share.share(content);
+        SharePlus.instance.share(ShareParams(text: content));
       },
       child: const Icon(Icons.share, color: Colors.grey, size: 20),
     );
