@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'signup_screen.dart';
 import 'home_screen.dart';
-import 'password_reset_screen.dart';
+import '../widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -87,7 +87,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                // Title and subtitle
+                // App Logo & Title
+                const Center(
+                  child: AppLogo(size: 72),
+                ),
+                const SizedBox(height: 16),
                 const Text(
                   'Welcome Back',
                   style: TextStyle(

@@ -16,6 +16,7 @@ import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/initials_avatar.dart';
+import '../widgets/app_logo.dart';
 import '../widgets/search_view.dart';
 import '../widgets/notifications_view.dart';
 import '../widgets/messages_view.dart';
@@ -505,33 +506,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
           const Spacer(),
 
-          // Center: Stylized Brand Logo (X Style)
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'PorTuT',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
-                  color: isDark ? Colors.white : const Color(0xFF424242),
-                ),
-              ),
-            ],
+          // Center: Stylized Brand Logo
+          const AppLogo(
+            size: 28,
+            showText: true,
           ),
 
           const Spacer(),

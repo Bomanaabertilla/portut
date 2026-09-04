@@ -31,6 +31,27 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> with Single
   String? _currentUserId;
   Set<String> _bookmarkedPostIds = {};
   List<Post> _customCategoryPosts = [];
+  bool _isRefreshing = false;
+
+  Future<void> _refreshData() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+    await _initData();
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (mounted) {
+      setState(() {
+        _isRefreshing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${widget.categoryTag} feed updated!'),
+          backgroundColor: const Color(0xFF8B4513),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
 
   Future<void> _addNewCategoryPost(Post newPost) async {
     try {
@@ -676,6 +697,23 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> with Single
           ],
         ),
         actions: [
+          IconButton(
+            icon: _isRefreshing
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isDark ? Colors.white : const Color(0xFF424242),
+                    ),
+                  )
+                : Icon(
+                    Icons.refresh_rounded,
+                    color: isDark ? Colors.white : const Color(0xFF424242),
+                  ),
+            tooltip: 'Refresh feed',
+            onPressed: _isRefreshing ? null : _refreshData,
+          ),
           IconButton(
             icon: Icon(Icons.share_outlined, color: isDark ? Colors.white : const Color(0xFF424242)),
             onPressed: () {

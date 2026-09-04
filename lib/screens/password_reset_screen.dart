@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/app_logo.dart';
 
 class PasswordResetScreen extends StatefulWidget {
   const PasswordResetScreen({super.key});
@@ -62,7 +63,11 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-              // Title and subtitle
+              // App Logo & Title
+              const Center(
+                child: AppLogo(size: 64),
+              ),
+              const SizedBox(height: 16),
               const Text(
                 'Reset Password',
                 style: TextStyle(

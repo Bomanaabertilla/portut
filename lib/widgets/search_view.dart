@@ -100,17 +100,6 @@ class _SearchViewState extends State<SearchView> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  // Settings / Search Filter
-                },
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: primaryColor,
-                  size: 22,
-                ),
-              ),
             ],
           ),
         ),
