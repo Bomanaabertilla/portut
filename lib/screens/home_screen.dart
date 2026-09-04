@@ -11,6 +11,7 @@ import 'blog_post_screen.dart';
 import 'bookmarks_screen.dart';
 import 'signup_screen.dart';
 import 'login_screen.dart';
+import 'category_detail_screen.dart';
 import '../services/post_service.dart';
 import '../services/auth_service.dart';
 import '../providers/theme_provider.dart';
@@ -44,6 +45,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
   Set<String> _bookmarkedPostIds = {};
   bool _showNewPostsPill = false;
+  bool _showAccountsSection = false;
+  Set<String> _followingUserIds = {};
 
   final PostService _postService = PostService();
   final AuthService _authService = AuthService();
@@ -104,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? user.displayName
               : (_currentUserId ?? 'User');
         });
+        await _loadFollowing();
         await _loadPosts();
         await _loadBookmarks();
       }
@@ -115,9 +119,25 @@ class _HomeScreenState extends State<HomeScreen> {
           _currentUserId = 'current_user';
           _currentUserName = 'User';
         });
+        await _loadFollowing();
         await _loadPosts();
         await _loadBookmarks();
       }
+    }
+  }
+
+  Future<void> _loadFollowing() async {
+    if (_currentUserId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('following_$_currentUserId') ?? [];
+      if (mounted) {
+        setState(() {
+          _followingUserIds = saved.toSet();
+        });
+      }
+    } catch (e) {
+      print('Error loading following: $e');
     }
   }
 
@@ -181,10 +201,15 @@ class _HomeScreenState extends State<HomeScreen> {
         // "For you": All public posts
         postsData = await _postService.getAllPosts();
       } else {
-        // "Following": Posts by current user or followed users
-        if (_currentUserId != null) {
-          postsData = await _postService.getPosts(_currentUserId!);
+        // "Following": Posts by users that current user is following
+        if (_followingUserIds.isNotEmpty) {
+          final allPosts = await _postService.getAllPosts();
+          postsData = allPosts.where((p) {
+            final authorId = p['authorId']?.toString();
+            return authorId != null && _followingUserIds.contains(authorId);
+          }).toList();
         } else {
+          // Not following anyone -> empty state
           postsData = [];
         }
       }
@@ -664,20 +689,86 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (_posts.isEmpty) {
+      if (_currentFeedTabIndex == 1) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.people_outline_rounded,
+                  size: 48,
+                  color: primaryColor,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Welcome to your timeline!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF14171A),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "When you follow people, you'll see their posts here. Search for people to follow or check out what's trending.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  height: 1.4,
+                  color: isDark ? const Color(0xFF71767B) : Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _currentBottomNavIndex = 1; // Switch to Search view
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Find people to follow',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _currentFeedTabIndex == 0 ? Icons.public : Icons.people_outline,
+              Icons.public,
               size: 56,
               color: isDark ? Colors.white24 : Colors.black26,
             ),
             const SizedBox(height: 14),
             Text(
-              _currentFeedTabIndex == 0
-                  ? 'No posts in feed'
-                  : 'No posts from following yet',
+              'No posts in feed',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -1086,86 +1177,136 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 14),
 
         // Featured Card
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CategoryDetailScreen(categoryTag: '📱 Flutter'),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [primaryColor, primaryColor.withValues(alpha: 0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
-                'WHAT\'S HAPPENING',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  color: Colors.white70,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'WHAT\'S HAPPENING',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    color: Colors.white70,
+                  ),
                 ),
-              ),
-              SizedBox(height: 6),
-              Text(
-                'Explore the latest developer tutorials, ideas, and stories',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                SizedBox(height: 6),
+                Text(
+                  'Explore the latest developer tutorials, ideas, and stories',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
 
         const SizedBox(height: 20),
+        _buildCategorySection('Popular Tech & Software', [
+          '📱 Flutter',
+          '⚛️ React',
+          '🤖 AI & ML',
+          '☁️ Cloud',
+          '🎨 UI/UX',
+          '💼 Careers',
+        ], isDark),
+
+        const SizedBox(height: 18),
+        _buildCategorySection('Science & History', [
+          '📜 History',
+          '🩺 Medicine',
+          '🔬 Science',
+        ], isDark),
+
+        const SizedBox(height: 18),
+        _buildCategorySection('Sports & Entertainment', [
+          '⚽ Football',
+          '🎮 Gaming',
+          '🎵 Music',
+          '✈️ Travel',
+        ], isDark),
+
+        const SizedBox(height: 18),
+        _buildCategorySection('Business & Finance', [
+          '🚀 Startups',
+          '💰 Finance',
+          '📈 Markets',
+        ], isDark),
+      ],
+    );
+  }
+
+  Widget _buildCategorySection(String title, List<String> tags, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Text(
-          'Popular Categories',
+          title,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 15.5,
             fontWeight: FontWeight.bold,
             color: isDark ? Colors.white : const Color(0xFF424242),
           ),
         ),
-        const SizedBox(height: 12),
-
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children:
-              [
-                '📱 Flutter',
-                '⚛️ React',
-                '🚀 Startups',
-                '🎨 UI/UX',
-                '🤖 AI & ML',
-                '☁️ Cloud',
-                '💼 Careers',
-              ].map((tag) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF2C2C2C)
-                        : const Color(0xFFEBE6DC),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    tag,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF424242),
-                    ),
+          children: tags.map((tag) {
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CategoryDetailScreen(categoryTag: tag),
                   ),
                 );
-              }).toList(),
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF2C2C2C)
+                      : const Color(0xFFEBE6DC),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF424242),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -1348,337 +1489,303 @@ class _HomeScreenState extends State<HomeScreen> {
     final textColor = isDark ? Colors.white : const Color(0xFF424242);
     final subtextColor = isDark ? const Color(0xFF71767B) : Colors.grey[600]!;
     final dividerColor = isDark ? const Color(0xFF2F3336) : Colors.black.withValues(alpha: 0.12);
-    final badgeColor = isDark ? const Color(0xFF1D9BF0) : primaryColor;
     final checkColor = isDark ? const Color(0xFF00BA7C) : primaryColor;
 
-    return Drawer(
-      backgroundColor: drawerBg,
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return StatefulBuilder(
+      builder: (context, setDrawerState) {
+        return Drawer(
+          backgroundColor: drawerBg,
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // User Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      InitialsAvatar(
-                        name: _currentUserName,
-                        size: 48,
-                        fontSize: 18,
-                        imagePath: _currentUser?.avatarPath,
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF536471) : primaryColor.withValues(alpha: 0.4),
-                            width: 1.2,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          InitialsAvatar(
+                            name: _currentUserName,
+                            size: 48,
+                            fontSize: 18,
+                            imagePath: _currentUser?.avatarPath,
                           ),
-                        ),
-                        child: Icon(
-                          Icons.more_vert,
-                          color: textColor,
-                          size: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _currentUserName,
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '@${_currentUserId ?? "b_bertilla24"}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: subtextColor,
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Text(
-                        '82 ',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        'Following',
-                        style: TextStyle(
-                          color: subtextColor,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Text(
-                        '11 ',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        'Followers',
-                        style: TextStyle(
-                          color: subtextColor,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            Divider(
-              height: 16,
-              thickness: 0.5,
-              color: dividerColor,
-            ),
-
-            // Navigation Links
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                children: [
-                  _buildDrawerItem(
-                    icon: Icons.person_outline,
-                    title: 'Profile',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                      _loadCurrentUser();
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.verified_outlined,
-                    title: 'Premium',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    trailingBadge: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: badgeColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        '50% off',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.people_outline,
-                    title: 'Communities',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.bookmark_border,
-                    title: 'Bookmarks',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () async {
-                      Navigator.pop(context);
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const BookmarksScreen(),
-                        ),
-                      );
-                      _loadBookmarks();
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.list_alt,
-                    title: 'Lists',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.graphic_eq,
-                    title: 'Spaces',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () {},
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.rocket_launch_outlined,
-                    title: 'Creator Studio',
-                    textColor: textColor,
-                    iconColor: isDark ? Colors.white : primaryColor,
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-
-            // Bottom Accounts Section
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: dividerColor, width: 0.5),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 32,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF536471) : Colors.grey[400],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Accounts',
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      InitialsAvatar(
-                        name: _currentUserName,
-                        size: 38,
-                        fontSize: 14,
-                        imagePath: _currentUser?.avatarPath,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentUserName,
-                              style: TextStyle(
+                          InkWell(
+                            onTap: () {
+                              setDrawerState(() {
+                                _showAccountsSection = !_showAccountsSection;
+                              });
+                              setState(() {});
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _showAccountsSection
+                                    ? (isDark ? Colors.white10 : primaryColor.withValues(alpha: 0.15))
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: isDark ? const Color(0xFF536471) : primaryColor.withValues(alpha: 0.4),
+                                  width: 1.2,
+                                ),
+                              ),
+                              child: Icon(
+                                Icons.more_vert,
                                 color: textColor,
-                                fontSize: 15.5,
-                                fontWeight: FontWeight.bold,
+                                size: 18,
                               ),
                             ),
-                            Text(
-                              '@${_currentUserId ?? "b_bertilla24"}',
-                              style: TextStyle(
-                                color: subtextColor,
-                                fontSize: 13,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _currentUserName,
+                        style: TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '@${_currentUserId ?? "b_bertilla24"}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: subtextColor,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Text(
+                            '${_followingUserIds.length} ',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            'Following',
+                            style: TextStyle(
+                              color: subtextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Text(
+                            '11 ',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            'Followers',
+                            style: TextStyle(
+                              color: subtextColor,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                Divider(
+                  height: 16,
+                  thickness: 0.5,
+                  color: dividerColor,
+                ),
+
+                // Navigation Links
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    children: [
+                      _buildDrawerItem(
+                        icon: Icons.person_outline,
+                        title: 'Profile',
+                        textColor: textColor,
+                        iconColor: isDark ? Colors.white : primaryColor,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileScreen(),
+                            ),
+                          );
+                          _loadCurrentUser();
+                        },
+                      ),
+                      _buildDrawerItem(
+                        icon: Icons.bookmark_border,
+                        title: 'Bookmarks',
+                        textColor: textColor,
+                        iconColor: isDark ? Colors.white : primaryColor,
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BookmarksScreen(),
+                            ),
+                          );
+                          _loadBookmarks();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Bottom Accounts Section (Only visible when 3 dots button is selected)
+                if (_showAccountsSection)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: dividerColor, width: 0.5),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 32,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF536471) : Colors.grey[400],
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Accounts',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 21,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            InitialsAvatar(
+                              name: _currentUserName,
+                              size: 38,
+                              fontSize: 14,
+                              imagePath: _currentUser?.avatarPath,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _currentUserName,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '@${_currentUserId ?? "b_bertilla24"}',
+                                    style: TextStyle(
+                                      color: subtextColor,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                            Icon(
+                              Icons.check_circle,
+                              color: checkColor,
+                              size: 20,
                             ),
                           ],
                         ),
-                      ),
-                      Icon(
-                        Icons.check_circle,
-                        color: checkColor,
-                        size: 20,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SignupScreen(),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SignupScreen(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                            ),
+                            child: Text(
+                              'Create a new account',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : primaryColor,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
                         ),
-                      ),
-                      child: Text(
-                        'Create a new account',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : primaryColor,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                            ),
+                            child: Text(
+                              'Add an existing account',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : primaryColor,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: isDark ? const Color(0xFF536471) : primaryColor),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                      ),
-                      child: Text(
-                        'Add an existing account',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : primaryColor,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
